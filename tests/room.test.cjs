@@ -100,6 +100,7 @@ test('rejects bad domains, too many lights and duplicates without replacing a va
     { ...config, lights: [{ entity: 'light.salon_glowna' }, { entity: 'light.salon_glowna' }] },
     { ...config, lights: 'light.salon' },
     { ...config, lights: ['light.salon'] },
+    { ...config, lights: [{ entity: 'sensor.salon_temperatura' }] },
   ]) assert.throws(() => card.setConfig(bad));
   assert.equal(card._config.climate, 'climate.salon');
   assert.equal(card._ui.lightButtons.length, 2);
@@ -231,6 +232,16 @@ test('incoming light config is copied, not reused', () => {
   card.setConfig({ lights });
   lights[0].entity = 'light.inne';
   assert.equal(card._config.lights[0].entity, 'light.lampa');
+});
+
+test('switch used as a light is shown and toggled in the switch domain', async () => {
+  const { card, hass } = setup({ name: 'Salon', lights: [{ entity: 'switch.lampa_salon', name: 'Lampa' }] });
+  hass.states['switch.lampa_salon'] = { state: 'off', attributes: { friendly_name: 'Lampa' } };
+  card.hass = hass;
+  assert.equal(card._ui.lightButtons.length, 1);
+  assert.equal(card._ui.lightButtons[0].button.getAttribute('aria-pressed'), 'false');
+  await card._toggleLight('switch.lampa_salon');
+  assert.equal(JSON.stringify(hass.calls[0]), JSON.stringify(['switch', 'toggle', { entity_id: 'switch.lampa_salon' }]));
 });
 
 test('editor keeps unrelated HA fields and ignores an echoed config', () => {

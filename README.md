@@ -104,7 +104,7 @@ W edytorze karty ustawiasz:
 - termostat (`climate`) — temperatura zadana, przyciski −/+ i tryb,
 - termometr (`sensor` temperatury),
 - gniazdko (`switch`) i opcjonalnie czujnik mocy — tylko odczyt, bez wyłączania,
-- do trzech świateł; pusty slot nie jest pokazywany.
+- do trzech świateł (`light` albo `switch`); pusty slot nie jest pokazywany.
 
 Przykład: [examples/pomieszczenie-card.yaml](examples/pomieszczenie-card.yaml).
 

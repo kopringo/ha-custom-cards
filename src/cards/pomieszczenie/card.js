@@ -7,7 +7,7 @@
     climate: /^climate\.[a-z0-9_]+$/,
     sensor: /^sensor\.[a-z0-9_]+$/,
     switch: /^switch\.[a-z0-9_]+$/,
-    light: /^light\.[a-z0-9_]+$/,
+    light: /^(?:light|switch)\.[a-z0-9_]+$/,
   };
   const LIGHTS = 3;
   const DEFAULT_ICONS = ["mdi:ceiling-light", "mdi:floor-lamp", "mdi:lightbulb-outline"];
@@ -126,7 +126,7 @@
           throw new Error("Każde światło musi być obiektem z polem entity.");
         }
         return {
-          entity: entity(item.entity, ID.light, "Światło musi być encją light."),
+          entity: entity(item.entity, ID.light, "Światło musi być encją light albo switch."),
           name: String(item.name || "").trim().slice(0, 60),
           icon: String(item.icon || DEFAULT_ICONS[index]).trim().slice(0, 80) || DEFAULT_ICONS[index],
         };
@@ -510,7 +510,7 @@
       this._update();
       const revision = this._revision;
       try {
-        await this._hass.callService("light", "toggle", { entity_id: entity });
+        await this._hass.callService(entity.split(".")[0], "toggle", { entity_id: entity });
       } catch (error) {
         if (revision === this._revision) {
           this._lightOverride.delete(entity);

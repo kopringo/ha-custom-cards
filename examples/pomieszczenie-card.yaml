@@ -11,3 +11,4 @@ lights:
   - entity: light.salon_kinkiet
     name: Kinkiet
     icon: mdi:floor-lamp
+  # Może być też switch, np. switch.lampa_salon

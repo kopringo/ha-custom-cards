@@ -65,7 +65,8 @@
       'sensor.gniazdko_salon_energia':{state:'4.2',attributes:{friendly_name:'Energia gniazdka',unit_of_measurement:'kWh',device_class:'energy'}},
       'light.salon_glowna':{state:'on',attributes:{friendly_name:'Lampa główna'}},
       'light.salon_kinkiet':{state:'off',attributes:{friendly_name:'Kinkiet'}},
-      'light.salon_tasma':{state:'off',attributes:{friendly_name:'Taśma LED'}}
+      'light.salon_tasma':{state:'off',attributes:{friendly_name:'Taśma LED'}},
+      'switch.salon_lampa':{state:'off',attributes:{friendly_name:'Lampa na switch'}}
     },async callService(domain,service,data){
       $('calls').textContent=JSON.stringify({domain,service,data},null,2);
       await new Promise(resolve=>setTimeout(resolve,200));
@@ -76,7 +77,7 @@
         entity.state=data.hvac_mode;
         entity.attributes={...entity.attributes,hvac_action:data.hvac_mode==='heat'?'heating':data.hvac_mode==='cool'?'cooling':'off'};
       }
-      if(entity&&domain==='light'&&service==='toggle')entity.state=entity.state==='on'?'off':'on';
+      if(entity&&(domain==='light'||domain==='switch')&&service==='toggle')entity.state=entity.state==='on'?'off':'on';
       if(card)card.hass={...hass};
     }};
     function update(){

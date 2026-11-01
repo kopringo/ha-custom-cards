@@ -70,7 +70,7 @@
       const caption = document.createElement("span");
       caption.textContent = labelText;
       const select = document.createElement("select");
-      const binding = { select, domain, filter: filter || "", value: value || "", signature: null };
+      const binding = { select, domains: [].concat(domain), filter: filter || "", value: value || "", signature: null };
       select.addEventListener("change", () => {
         binding.value = select.value;
         onChange(select.value);
@@ -83,7 +83,7 @@
     _updateOptions() {
       for (const binding of this._selects) {
         const entries = Object.entries(this._hass?.states || {})
-          .filter(([id, state]) => id.startsWith(`${binding.domain}.`) && this._accepts(state, binding.filter))
+          .filter(([id, state]) => binding.domains.some(domain => id.startsWith(`${domain}.`)) && this._accepts(state, binding.filter))
           .map(([id, state]) => [id, state.attributes?.friendly_name || id])
           .sort((a, b) => a[1].localeCompare(b[1], "pl"));
         const signature = JSON.stringify([entries, binding.value]);
@@ -140,13 +140,13 @@
       this._entityField(general, "Gniazdko", "switch", this._config.plug, value => this._commit(config => { config.plug = value; }));
       this._entityField(general, "Moc gniazdka", "sensor", this._config.power, value => this._commit(config => { config.power = value; }), "power");
       q(".plug-help").textContent = "Gniazdko jest tylko informacją: czy jest włączone i jaki jest pobór mocy. Z tej karty nie da się go wyłączyć. Bez czujnika mocy karta sprawdzi atrybuty gniazdka.";
-      q(".light-help").textContent = "Do trzech świateł. Pusty slot nie pojawia się na karcie. Przycisk włącza i wyłącza wybrane światło.";
+      q(".light-help").textContent = "Do trzech świateł, encja light albo switch. Pusty slot nie pojawia się na karcie. Przycisk włącza i wyłącza wybrane światło.";
       this._config.lights.forEach((light, index) => {
         const fieldset = document.createElement("fieldset");
         const legend = document.createElement("legend");
         legend.textContent = `Światło ${index + 1}`;
         fieldset.append(legend);
-        this._entityField(fieldset, "Encja światła", "light", light.entity, value => this._commit(config => { config.lights[index].entity = value; }));
+        this._entityField(fieldset, "Encja światła", ["light", "switch"], light.entity, value => this._commit(config => { config.lights[index].entity = value; }));
         const grid = document.createElement("div");
         grid.className = "grid";
         this._textField(grid, "Nazwa na karcie", light.name, value => this._commit(config => { config.lights[index].name = value; }), { limit: 60 });

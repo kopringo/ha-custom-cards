@@ -119,6 +119,7 @@ const HaCardKit = Object.freeze({
       return {
         name: "Pomieszczenie",
         climate: "",
+        climate_temperature: "",
         thermometer: "",
         plug: "",
         power: "",
@@ -183,7 +184,7 @@ const HaCardKit = Object.freeze({
       const config = this._config;
       if (!config) return 4;
       let rows = 2;
-      if (config.thermometer || config.climate) rows += 2;
+      if (config.thermometer || config.climate || config.climate_temperature) rows += 2;
       if (config.plug || config.power) rows += 1;
       if (config.lights.some(light => light.entity)) rows += 1;
       return rows;
@@ -220,6 +221,7 @@ const HaCardKit = Object.freeze({
       return {
         name: String(config.name ?? "").trim().slice(0, 80) || "Pomieszczenie",
         climate: entity(config.climate, ID.climate, "Termostat musi być encją climate."),
+        climate_temperature: entity(config.climate_temperature, ID.sensor, "Temperatura termostatu musi być encją sensor."),
         thermometer: entity(config.thermometer, ID.sensor, "Termometr musi być encją sensor."),
         plug: entity(config.plug, ID.switch, "Gniazdko musi być encją switch."),
         power: entity(config.power, ID.sensor, "Czujnik mocy musi być encją sensor."),
@@ -241,6 +243,11 @@ const HaCardKit = Object.freeze({
         .kicker { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary-text-color); }
         .thermo-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .reading { margin: 10px 0 0; font-size: 34px; font-weight: 500; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+        .setpoint { display: block; }
+        .setpoint-label { margin: 12px 0 0; }
+        .thermostat.with-measure .setpoint { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+        .thermostat.with-measure .target-reading { margin-top: 2px; font-size: 22px; }
+        .thermostat.with-measure .stepper { margin-top: 0; }
         .unit { margin-left: 2px; font-size: 15px; font-weight: 500; letter-spacing: 0; }
         .sub { margin: 8px 0 0; min-height: 16px; font-size: 12px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
         .action { margin: 0; font-size: 12px; font-weight: 500; color: var(--secondary-text-color); text-align: right; }
@@ -297,7 +304,7 @@ const HaCardKit = Object.freeze({
       thermometer.className = "tile thermometer";
       const thermometerKicker = document.createElement("p");
       thermometerKicker.className = "kicker";
-      thermometerKicker.textContent = "Termometr";
+      thermometerKicker.textContent = "W pokoju";
       const thermometerReading = document.createElement("p");
       thermometerReading.className = "reading";
       const thermometerValue = document.createElement("span");
@@ -318,12 +325,30 @@ const HaCardKit = Object.freeze({
       const action = document.createElement("p");
       action.className = "action";
       thermoTop.append(thermostatKicker, action);
+      const measured = document.createElement("div");
+      measured.className = "measured";
+      const measuredReading = document.createElement("p");
+      measuredReading.className = "reading";
+      const climateValue = document.createElement("span");
+      const climateUnit = document.createElement("span");
+      climateUnit.className = "unit";
+      measuredReading.append(climateValue, climateUnit);
+      const climateSub = document.createElement("p");
+      climateSub.className = "sub";
+      measured.append(measuredReading, climateSub);
+      const setpoint = document.createElement("div");
+      setpoint.className = "setpoint";
+      const setpointCopy = document.createElement("div");
+      const setpointLabel = document.createElement("p");
+      setpointLabel.className = "kicker setpoint-label";
+      setpointLabel.textContent = "Zadana";
       const targetReading = document.createElement("p");
-      targetReading.className = "reading";
+      targetReading.className = "reading target-reading";
       const targetValue = document.createElement("span");
       const targetUnit = document.createElement("span");
       targetUnit.className = "unit";
       targetReading.append(targetValue, targetUnit);
+      setpointCopy.append(setpointLabel, targetReading);
       const stepper = document.createElement("div");
       stepper.className = "stepper";
       const minus = document.createElement("button");
@@ -337,11 +362,12 @@ const HaCardKit = Object.freeze({
       plus.setAttribute("aria-label", "Podnieś temperaturę zadaną");
       plus.addEventListener("click", () => this._nudge(1));
       stepper.append(minus, plus);
+      setpoint.append(setpointCopy, stepper);
       const modes = document.createElement("div");
       modes.className = "modes";
       modes.setAttribute("role", "group");
       modes.setAttribute("aria-label", "Tryb termostatu");
-      thermostat.append(thermoTop, targetReading, stepper, modes);
+      thermostat.append(thermoTop, measured, setpoint, modes);
       metrics.append(thermometer, thermostat);
 
       // Read-only on purpose: the plug reports state and power, it is not a switch.
@@ -393,7 +419,8 @@ const HaCardKit = Object.freeze({
       this._modeSignature = "";
       this._ui = {
         name, empty, metrics, thermometer, thermometerValue, thermometerUnit, thermometerSub,
-        thermostat, action, targetValue, targetUnit, minus, plus, modes, modeButtons: [],
+        thermostat, thermostatKicker, measured, climateValue, climateUnit, climateSub, setpoint, setpointLabel,
+        action, targetValue, targetUnit, minus, plus, modes, modeButtons: [],
         plug, plugName, plugState, plugPower, lights, lightButtons, status,
       };
     }
@@ -403,7 +430,7 @@ const HaCardKit = Object.freeze({
       const ui = this._ui;
       ui.name.textContent = this._config.name;
       const showThermometer = !!this._config.thermometer;
-      const showThermostat = !!this._config.climate;
+      const showThermostat = !!(this._config.climate || this._config.climate_temperature);
       const showPlug = !!(this._config.plug || this._config.power);
       const showLights = ui.lightButtons.length > 0;
       const configured = showThermometer || showThermostat || showPlug || showLights;
@@ -437,29 +464,44 @@ const HaCardKit = Object.freeze({
       const name = this._friendly(entity, "");
       ui.thermometerSub.textContent = unavailable ? "Niedostępny" : name;
       ui.thermometer.setAttribute("aria-label", unavailable
-        ? "Termometr niedostępny"
-        : `Termometr ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
+        ? "Temperatura w pokoju niedostępna"
+        : `Temperatura w pokoju ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
     }
 
     _updateThermostat() {
       const ui = this._ui;
-      const unavailable = this._unavailable(this._config.climate);
-      const range = this._rangeTarget();
-      const target = this._displayedTarget();
+      const hasClimate = !!this._config.climate;
+      const unavailable = hasClimate && this._unavailable(this._config.climate);
+      const showMeasure = !!this._config.climate_temperature;
+      setHidden(ui.measured, !showMeasure);
+      setHidden(ui.setpoint, !hasClimate);
+      setHidden(ui.setpointLabel, !showMeasure);
+      ui.thermostat.className = "tile thermostat";
+      ui.thermostat.classList.toggle("with-measure", showMeasure);
+      ui.thermostatKicker.textContent = showMeasure ? "Termostat" : "Zadana";
+      if (showMeasure) {
+        const sensor = this._config.climate_temperature;
+        const sensorDown = this._unavailable(sensor);
+        this._setReading(ui.climateValue, ui.climateUnit, sensorDown ? null : this._numericState(sensor), this._unit(sensor));
+        ui.climateSub.textContent = sensorDown ? "Niedostępny" : this._friendly(sensor, "");
+      }
+      const range = hasClimate ? this._rangeTarget() : null;
+      const target = hasClimate ? this._displayedTarget() : null;
       if (target != null) this._setReading(ui.targetValue, ui.targetUnit, target, this._unit(this._config.climate));
       else if (range) {
         ui.targetValue.textContent = `${this._formatNumber(range.low, this._digits())}–${this._formatNumber(range.high, this._digits())}`;
         ui.targetUnit.textContent = this._unit(this._config.climate);
       } else this._setReading(ui.targetValue, ui.targetUnit, null, "");
-      const action = this._action();
-      ui.action.textContent = unavailable ? "Niedostępny" : action.label;
+      const action = hasClimate ? this._action() : { label: "", kind: "" };
+      ui.action.textContent = !hasClimate ? "" : unavailable ? "Niedostępny" : action.label;
       ui.action.className = "action";
-      if (!unavailable && action.kind) ui.action.classList.toggle(action.kind, true);
+      if (hasClimate && !unavailable && action.kind) ui.action.classList.toggle(action.kind, true);
       const { min, max } = this._bounds();
       ui.minus.disabled = !this._canAdjustTemp() || target == null || target <= min + 0.001;
       ui.plus.disabled = !this._canAdjustTemp() || target == null || target >= max - 0.001;
-      ui.thermostat.setAttribute("aria-label", `Temperatura zadana ${ui.targetValue.textContent} ${ui.targetUnit.textContent}`.trim());
-      this._syncModes(unavailable);
+      const measuredText = showMeasure ? `Pomiar termostatu ${ui.climateValue.textContent} ${ui.climateUnit.textContent}. ` : "";
+      ui.thermostat.setAttribute("aria-label", `${measuredText}Temperatura zadana ${ui.targetValue.textContent} ${ui.targetUnit.textContent}`.trim());
+      this._syncModes(!hasClimate || unavailable);
     }
 
     _syncModes(unavailable) {
@@ -942,7 +984,12 @@ const HaCardKit = Object.freeze({
         limit: 80, placeholder: "Pomieszczenie",
       });
       this._entityField(general, "Termostat", "climate", this._config.climate, value => this._commit(config => { config.climate = value; }));
-      this._entityField(general, "Termometr", "sensor", this._config.thermometer, value => this._commit(config => { config.thermometer = value; }), "temperature");
+      this._entityField(general, "Temperatura termostatu", "sensor", this._config.climate_temperature, value => this._commit(config => { config.climate_temperature = value; }), "temperature");
+      this._entityField(general, "Termometr w pokoju", "sensor", this._config.thermometer, value => this._commit(config => { config.thermometer = value; }), "temperature");
+      const climateHelp = document.createElement("p");
+      climateHelp.className = "help";
+      climateHelp.textContent = "Termometr w pokoju to czujnik w pomieszczeniu. Temperatura termostatu to pomiar z samego urządzenia, na przykład sensor.0x…_local_temperature. Zadana temperatura zostaje osobno.";
+      general.append(climateHelp);
       this._entityField(general, "Gniazdko", "switch", this._config.plug, value => this._commit(config => { config.plug = value; }));
       this._entityField(general, "Moc gniazdka", "sensor", this._config.power, value => this._commit(config => { config.power = value; }), "power");
       q(".plug-help").textContent = "Gniazdko jest tylko informacją: czy jest włączone i jaki jest pobór mocy. Z tej karty nie da się go wyłączyć. Bez czujnika mocy karta sprawdzi atrybuty gniazdka.";
@@ -971,39 +1018,47 @@ const HaCardKit = Object.freeze({
 ;
 
 // Source: src/cards/powiedz-w-domu/card.js
-/** Powiedz w domu — text, speech recognition and a backend HA script. */
+/** Powiedz w domu — głośniki, gotowe komunikaty i własna wiadomość przez skrypt HA. */
 (() => {
   const TAG = "powiedz-w-domu-card";
   if (customElements.get(TAG)) return;
 
-  const DEFAULT_PRESETS = [
-    { label: "Obiad gotowy", text: "Obiad gotowy. Zapraszam do stołu!", icon: "mdi:silverware-fork-knife" },
-    { label: "Wychodzimy za 5 min", text: "Wychodzimy za pięć minut. Przygotujcie się!", icon: "mdi:door-open" },
-    { label: "Chodźcie do salonu", text: "Proszę, przyjdźcie na chwilę do salonu.", icon: "mdi:account-group" },
-    { label: "Dobranoc", text: "Czas spać. Dobranoc!", icon: "mdi:weather-night" },
-  ];
+  const SPEAKERS = 3;
+  const PRESETS = 10;
   const LIMIT = 1000;
   const ENTITY = /^media_player\.[a-z0-9_]+$/;
   const SCRIPT = /^script\.[a-z0-9_]+$/;
+  const DEFAULT_PRESETS = [
+    "Obiad gotowy. Zapraszam do stołu!",
+    "Wychodzimy za pięć minut. Przygotujcie się!",
+    "Proszę, przyjdźcie na chwilę do salonu.",
+    "Czas spać. Dobranoc!",
+  ];
+  const DEFAULT_SPEAKERS = [
+    { entity: "", name: "Salon", icon: "mdi:sofa" },
+    { entity: "", name: "Kuchnia", icon: "mdi:pot-steam" },
+    { entity: "", name: "", icon: "mdi:speaker" },
+  ];
 
   class PowiedzWDomuCard extends HTMLElement {
     static getConfigElement() {
       return document.createElement("powiedz-w-domu-editor");
     }
+
     static getStubConfig() {
       return {
         title: "Powiedz w domu", script: "", language: "pl-PL", show_dictation: true,
-        speakers: [
-          { entity: "", name: "Salon", icon: "mdi:sofa" },
-          { entity: "", name: "Kuchnia", icon: "mdi:pot-steam" },
-        ],
-        presets: DEFAULT_PRESETS.map(preset => ({ ...preset })),
+        speakers: DEFAULT_SPEAKERS.map(speaker => ({ ...speaker })),
+        presets: Array.from({ length: PRESETS }, (_, index) => ({ text: DEFAULT_PRESETS[index] || "" })),
       };
     }
+
     constructor() {
       super();
       this.attachShadow({ mode: "open" });
       this._text = "";
+      this._custom = false;
+      this._selected = new Set();
       this._sending = false;
       this._recognition = null;
       this._revision = 0;
@@ -1015,37 +1070,11 @@ const HaCardKit = Object.freeze({
       if (!config || (config.script && !SCRIPT.test(config.script))) {
         throw new Error("Podaj script, np. script.powiedz_w_domu.");
       }
-      const speakers = config.speakers ?? PowiedzWDomuCard.getStubConfig().speakers;
-      const chosen = Array.isArray(speakers) ? speakers.map(s => s?.entity).filter(Boolean) : [];
-      if (!Array.isArray(speakers) || speakers.length !== 2 ||
-          speakers.some(s => !s || (s.entity && !ENTITY.test(s.entity))) ||
-          new Set(chosen).size !== chosen.length) {
-        throw new Error("speakers musi zawierać dwa różne głośniki z entity: media_player.…");
-      }
-      const presets = config.presets ?? DEFAULT_PRESETS;
-      if (!Array.isArray(presets) || presets.some(p => !p ||
-          typeof p.text !== "string" || p.text.length > LIMIT)) {
-        throw new Error("Każdy preset musi mieć pole text (maks. 1000 znaków).");
-      }
+      const next = this._normalize(config);
       this._cancelRecognition();
       this._revision += 1;
-      this._config = {
-        title: String(config.title ?? "Powiedz w domu"),
-        script: config.script || "",
-        language: String(config.language ?? "pl-PL"),
-        show_dictation: config.show_dictation !== false,
-        speakers: speakers.map(s => ({
-          entity: s.entity || "", name: s.name == null ? null : String(s.name),
-          icon: String(s.icon || "mdi:speaker"),
-        })),
-        presets: presets.map(p => ({
-          text: p.text, label: String(p.label || p.text || "Nowy komunikat"),
-          icon: String(p.icon || "mdi:message-text-outline"),
-        })),
-      };
-      if (!this._config.speakers.some(s => s.entity === this._selected)) {
-        this._selected = this._config.speakers[0].entity;
-      }
+      this._config = next;
+      this._selected = new Set(next.speakers.filter(speaker => speaker.selected).map(speaker => speaker.entity));
       this._notice = "";
       this._build();
       this._update();
@@ -1057,8 +1086,58 @@ const HaCardKit = Object.freeze({
     get hass() { return this._hass; }
     connectedCallback() { this._update(); }
     disconnectedCallback() { this._cancelRecognition(); }
-    getCardSize() { return 10; }
+    getCardSize() { return 8; }
     getGridOptions() { return { columns: 12, rows: "auto", min_columns: 6 }; }
+
+    _normalize(config) {
+      const speakers = config.speakers == null ? DEFAULT_SPEAKERS : config.speakers;
+      if (!Array.isArray(speakers)) throw new Error("Pole speakers musi być listą.");
+      if (speakers.length > SPEAKERS) throw new Error("Możesz skonfigurować maksymalnie 3 głośniki.");
+      const declared = speakers.some(speaker => speaker && Object.prototype.hasOwnProperty.call(speaker, "selected"));
+      let picked = false;
+      const normalizedSpeakers = speakers.map((speaker, index) => {
+        if (!speaker || typeof speaker !== "object" || Array.isArray(speaker)) {
+          throw new Error("Każdy głośnik musi być obiektem z polem entity.");
+        }
+        const entity = speaker.entity == null || speaker.entity === "" ? "" : String(speaker.entity);
+        if (entity && !ENTITY.test(entity)) throw new Error("Głośnik musi być encją media_player.");
+        let selected = declared ? speaker.selected === true : false;
+        if (!declared && entity && !picked) { selected = true; picked = true; }
+        return {
+          entity,
+          name: speaker.name == null ? String(DEFAULT_SPEAKERS[index]?.name || "") : String(speaker.name).trim().slice(0, 60),
+          icon: String(speaker.icon || DEFAULT_SPEAKERS[index]?.icon || "mdi:speaker").trim().slice(0, 80) || "mdi:speaker",
+          selected: selected && !!entity,
+        };
+      });
+      const chosen = normalizedSpeakers.map(speaker => speaker.entity).filter(Boolean);
+      if (new Set(chosen).size !== chosen.length) throw new Error("Każdy głośnik musi być inną encją.");
+
+      const presets = config.presets == null ? DEFAULT_PRESETS.map(text => ({ text })) : config.presets;
+      if (!Array.isArray(presets)) throw new Error("Pole presets musi być listą.");
+      if (presets.length > PRESETS) throw new Error("Możesz skonfigurować maksymalnie 10 komunikatów.");
+      const normalizedPresets = Array.from({ length: PRESETS }, (_, index) => {
+        const preset = presets[index];
+        if (preset == null) return { text: "" };
+        if (typeof preset !== "object" || Array.isArray(preset)) {
+          throw new Error("Każdy komunikat musi być obiektem z polem text.");
+        }
+        const value = preset.text != null && preset.text !== "" ? preset.text : preset.label;
+        if (value == null || value === "") return { text: "" };
+        if (typeof value !== "string" || value.length > LIMIT) {
+          throw new Error("Każdy komunikat musi mieć pole text (maks. 1000 znaków).");
+        }
+        return { text: value };
+      });
+      return {
+        title: String(config.title ?? "Powiedz w domu").trim().slice(0, 80) || "Powiedz w domu",
+        script: config.script || "",
+        language: String(config.language ?? "pl-PL"),
+        show_dictation: config.show_dictation !== false,
+        speakers: normalizedSpeakers,
+        presets: normalizedPresets,
+      };
+    }
 
     _icon(name) {
       const icon = document.createElement("ha-icon");
@@ -1068,132 +1147,194 @@ const HaCardKit = Object.freeze({
     }
 
     _build() {
-      // Only static markup goes through innerHTML. All config/user strings are
-      // assigned via textContent/value/setAttribute, never interpreted as HTML.
-      this.shadowRoot.innerHTML = `
-        <style>
-          :host { display:block; color:var(--primary-text-color); }
-          * { box-sizing:border-box; }
-          ha-card { overflow:hidden; }
-          header { display:flex; gap:12px; align-items:center; padding:22px 22px 16px; }
-          .brand { display:grid; place-items:center; width:44px; height:44px; flex:none;
-            border-radius:14px; color:var(--primary-color); background:var(--secondary-background-color); }
-          h2 { margin:0 0 4px; font-size:21px; font-weight:500; line-height:1.3; overflow-wrap:anywhere; }
-          header p { margin:0; font-size:13px; color:var(--secondary-text-color); }
-          .content { padding:0 22px 22px; }
-          .label { display:block; margin:7px 0 10px; font-size:13px; font-weight:500; }
-          button,textarea { font:inherit; }
-          button { cursor:pointer; color:var(--primary-text-color); }
-          button:disabled { cursor:default; opacity:.55; }
-          button:focus-visible,textarea:focus-visible { outline:3px solid var(--primary-color); outline-offset:3px; }
-          .speakers { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:22px; }
-          .speaker { display:flex; align-items:center; gap:9px; text-align:left; min-height:75px; min-width:0;
-            padding:12px; border:1px solid var(--divider-color); border-radius:13px; background:var(--card-background-color); }
-          .speaker[aria-pressed=true] { border-color:var(--primary-color); background:var(--secondary-background-color); }
-          .speaker[aria-pressed=true] ha-icon { color:var(--primary-color); }
-          .speaker-copy { display:flex; flex-direction:column; gap:5px; flex:1; min-width:0; }
-          .speaker-name { font-size:14px; font-weight:500; overflow-wrap:anywhere; }
-          .speaker-state { font-size:11px; color:var(--secondary-text-color); }
-          .radio { width:15px; height:15px; border:1.5px solid var(--secondary-text-color); border-radius:50%; flex:none; }
-          .speaker[aria-pressed=true] .radio { border:4.5px solid var(--primary-color); }
-          .editor { border:1px solid var(--divider-color); border-radius:12px; overflow:hidden; }
-          .editor:focus-within { border-color:var(--primary-color); }
-          textarea { display:block; width:100%; min-height:116px; resize:vertical; padding:13px 14px 6px;
-            border:0; background:var(--card-background-color); color:var(--primary-text-color); font-size:16px; line-height:1.6; }
-          textarea::placeholder { color:var(--secondary-text-color); opacity:1; }
-          .editor-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; }
-          .dictate { display:flex; align-items:center; gap:6px; min-height:40px; padding:6px 10px;
-            border:0; border-radius:8px; color:var(--primary-color); background:var(--secondary-background-color); font-size:13px; }
-          .dictate[aria-pressed=true] { color:var(--error-color); }
-          .count { font-size:11px; font-variant-numeric:tabular-nums; color:var(--secondary-text-color); }
-          .speech-help { font-size:12px; line-height:1.5; color:var(--secondary-text-color); margin:9px 0 0; }
-          .presets-label { font-size:12px; font-weight:500; margin:19px 0 10px; }
-          .presets-label span { font-weight:400; color:var(--secondary-text-color); }
-          .presets { display:flex; flex-wrap:wrap; gap:8px; }
-          .preset { display:flex; align-items:center; gap:6px; min-height:38px; max-width:100%; text-align:left;
-            border:1px solid var(--divider-color); border-radius:22px; background:var(--secondary-background-color); padding:8px 11px; font-size:12px; }
-          .preset span { overflow-wrap:anywhere; min-width:0; }
-          ha-icon { --mdc-icon-size:20px; flex:none; }
-          .preset ha-icon { --mdc-icon-size:16px; color:var(--secondary-text-color); }
-          footer { border-top:1px solid var(--divider-color); padding:18px 22px 15px; }
-          .send { display:flex; justify-content:center; align-items:center; gap:9px; width:100%; min-height:48px;
-            border:0; border-radius:12px; padding:12px; font-size:15px; font-weight:500;
-            background:var(--primary-color); color:var(--text-primary-color,#fff); }
-          .send span { overflow-wrap:anywhere; min-width:0; }
-          .status { margin-top:11px; font-size:12px; line-height:1.5; min-height:18px; text-align:center;
-            color:var(--secondary-text-color); overflow-wrap:anywhere; }
-          .status.error { color:var(--error-color); }
-          [hidden] { display:none!important; }
-          @media(max-width:380px) { header {padding:20px 16px 16px} .content {padding:0 16px 20px}
-            footer {padding:16px} .speaker {padding:11px 8px;gap:7px} .presets-label span {display:block;margin-top:4px} }
-          @media(pointer:coarse) { .preset,.dictate {min-height:44px} }
-        </style>
-        <ha-card>
-          <header><div class="brand"><ha-icon icon="mdi:bullhorn-outline" aria-hidden="true"></ha-icon></div>
-            <div><h2></h2><p>Wiadomość na wybranym głośniku</p></div></header>
-          <div class="content">
-            <div class="label" id="speakers-label">Gdzie odtworzyć?</div>
-            <div class="speakers" role="group" aria-labelledby="speakers-label"></div>
-            <label class="label" for="message">Treść wiadomości</label>
-            <div class="editor">
-              <textarea id="message" rows="4" maxlength="1000" placeholder="Co chcesz przekazać domownikom?"></textarea>
-              <div class="editor-footer"><button type="button" class="dictate" aria-pressed="false" aria-describedby="speech-help">
-                <ha-icon icon="mdi:microphone" aria-hidden="true"></ha-icon><span>Dyktuj</span></button><span class="count"></span></div>
-            </div>
-            <p class="speech-help" id="speech-help"></p>
-            <div class="preset-section"><div class="presets-label">Gotowe wiadomości <span>· kliknij, aby wstawić</span></div>
-              <div class="presets"></div></div>
-          </div>
-          <footer><button type="button" class="send"><ha-icon icon="mdi:play" aria-hidden="true"></ha-icon><span></span></button>
-            <div class="status" role="status" aria-live="polite" aria-atomic="true"></div></footer>
-        </ha-card>`;
-      const q = s => this.shadowRoot.querySelector(s);
-      this._ui = { text: q("textarea"), count: q(".count"), mic: q(".dictate"),
-        micLabel: q(".dictate span"), micIcon: q(".dictate ha-icon"), help: q(".speech-help"),
-        send: q(".send"), sendLabel: q(".send span"), status: q(".status"), speakers: [], presets: [] };
-      q("h2").textContent = this._config.title;
-      this._ui.text.value = this._text;
-      this._config.speakers.forEach(speaker => {
+      const style = document.createElement("style");
+      style.textContent = `
+        :host { display: block; color: var(--primary-text-color); }
+        * { box-sizing: border-box; }
+        ha-card { container-type: inline-size; display: block; overflow: hidden; }
+        header { display: flex; gap: 12px; align-items: center; padding: 22px 22px 8px; }
+        .brand { display: grid; place-items: center; width: 44px; height: 44px; flex: none;
+          border-radius: 14px; color: var(--primary-color); background: var(--secondary-background-color); }
+        h2 { margin: 0; font-size: 21px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+        .content { display: flex; flex-direction: column; gap: 10px; padding: 8px 22px 22px; }
+        button, textarea { font: inherit; }
+        button { cursor: pointer; color: var(--primary-text-color); }
+        button:disabled { cursor: default; opacity: .55; }
+        button:focus-visible, textarea:focus-visible { outline: 3px solid var(--primary-color); outline-offset: 3px; }
+        .speakers { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .speakers.cols-2 { grid-template-columns: 1fr 1fr; }
+        .speakers.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .speaker { display: flex; align-items: center; gap: 9px; text-align: left; min-height: 64px; min-width: 0;
+          padding: 12px; border: 1px solid var(--divider-color); border-radius: 13px; background: var(--card-background-color); }
+        .speaker[aria-pressed=true] { border-color: var(--primary-color); background: var(--secondary-background-color); }
+        .speaker[aria-pressed=true] ha-icon { color: var(--primary-color); }
+        .speaker-copy { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+        .speaker-name { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+        .speaker-state { font-size: 11px; color: var(--secondary-text-color); }
+        .check { width: 18px; height: 18px; border: 1.5px solid var(--secondary-text-color); border-radius: 5px; flex: none; display: grid; place-items: center; }
+        .check::after { content: ""; width: 8px; height: 5px; border-left: 2px solid transparent; border-bottom: 2px solid transparent; transform: rotate(-45deg) translateY(-1px); }
+        .speaker[aria-pressed=true] .check { border-color: var(--primary-color); background: var(--primary-color); }
+        .speaker[aria-pressed=true] .check::after { border-color: var(--text-primary-color, #fff); }
+        .presets { display: flex; flex-direction: column; gap: 8px; }
+        .preset { display: flex; align-items: center; width: 100%; min-height: 44px; text-align: left;
+          border: 1px solid var(--divider-color); border-radius: 12px; background: var(--secondary-background-color); padding: 10px 14px; font-size: 14px; }
+        .preset span { overflow-wrap: anywhere; min-width: 0; }
+        .preset[aria-pressed=true] { border-color: var(--primary-color); background: var(--card-background-color); color: var(--primary-color); }
+        .composer { display: flex; flex-direction: column; gap: 8px; }
+        .editor { border: 1px solid var(--divider-color); border-radius: 12px; overflow: hidden; }
+        .editor:focus-within { border-color: var(--primary-color); }
+        textarea { display: block; width: 100%; min-height: 96px; resize: vertical; padding: 13px 14px 6px;
+          border: 0; background: var(--card-background-color); color: var(--primary-text-color); font-size: 16px; line-height: 1.6; }
+        textarea::placeholder { color: var(--secondary-text-color); opacity: 1; }
+        .editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; }
+        .dictate { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 10px;
+          border: 0; border-radius: 8px; color: var(--primary-color); background: var(--secondary-background-color); font-size: 13px; }
+        .dictate[aria-pressed=true] { color: var(--error-color); }
+        .count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--secondary-text-color); }
+        .speech-help { font-size: 12px; line-height: 1.5; color: var(--secondary-text-color); margin: 0; }
+        ha-icon { --mdc-icon-size: 20px; flex: none; }
+        .send { display: flex; justify-content: center; align-items: center; gap: 9px; width: 100%; min-height: 48px;
+          border: 0; border-radius: 12px; padding: 12px; font-size: 15px; font-weight: 500;
+          background: var(--primary-color); color: var(--text-primary-color, #fff); }
+        .status { font-size: 12px; line-height: 1.5; text-align: center; color: var(--secondary-text-color); overflow-wrap: anywhere; }
+        .status.error { color: var(--error-color); }
+        [hidden] { display: none !important; }
+        @container (max-width: 460px) {
+          .speakers.cols-2, .speakers.cols-3 { grid-template-columns: 1fr; }
+          header { padding: 20px 16px 8px; }
+          .content { padding: 8px 16px 20px; }
+        }
+        @media (pointer: coarse) { .preset, .dictate, .speaker { min-height: 44px; } }
+      `;
+      const card = document.createElement("ha-card");
+      const header = document.createElement("header");
+      const brand = document.createElement("div");
+      brand.className = "brand";
+      brand.append(this._icon("mdi:bullhorn-outline"));
+      const heading = document.createElement("h2");
+      header.append(brand, heading);
+      const content = document.createElement("div");
+      content.className = "content";
+      const speakers = document.createElement("div");
+      speakers.className = "speakers";
+      speakers.setAttribute("role", "group");
+      speakers.setAttribute("aria-label", "Głośniki");
+      const presets = document.createElement("div");
+      presets.className = "presets";
+      presets.setAttribute("role", "group");
+      presets.setAttribute("aria-label", "Komunikaty");
+      const composer = document.createElement("div");
+      composer.className = "composer";
+      const editor = document.createElement("div");
+      editor.className = "editor";
+      const text = document.createElement("textarea");
+      text.rows = 3;
+      text.maxLength = LIMIT;
+      text.placeholder = "Własna wiadomość";
+      text.setAttribute("aria-label", "Własna wiadomość");
+      const footer = document.createElement("div");
+      footer.className = "editor-footer";
+      const mic = document.createElement("button");
+      mic.type = "button";
+      mic.className = "dictate";
+      mic.setAttribute("aria-pressed", "false");
+      const micIcon = this._icon("mdi:microphone");
+      const micLabel = document.createElement("span");
+      micLabel.textContent = "Dyktuj";
+      mic.append(micIcon, micLabel);
+      const count = document.createElement("span");
+      count.className = "count";
+      footer.append(mic, count);
+      const help = document.createElement("p");
+      help.className = "speech-help";
+      const send = document.createElement("button");
+      send.type = "button";
+      send.className = "send";
+      const sendIcon = this._icon("mdi:play");
+      const sendLabel = document.createElement("span");
+      send.append(sendIcon, sendLabel);
+      editor.append(text, footer);
+      composer.append(editor, help, send);
+      const status = document.createElement("p");
+      status.className = "status";
+      status.setAttribute("role", "status");
+      status.setAttribute("aria-live", "polite");
+      content.append(speakers, presets, composer, status);
+      card.append(header, content);
+      this.shadowRoot.replaceChildren(style, card);
+
+      heading.textContent = this._config.title;
+      text.value = this._text;
+      const visibleSpeakers = this._config.speakers.filter(speaker => speaker.entity);
+      speakers.classList.toggle("cols-2", visibleSpeakers.length === 2);
+      speakers.classList.toggle("cols-3", visibleSpeakers.length >= 3);
+      speakers.hidden = !visibleSpeakers.length;
+      const speakerUi = visibleSpeakers.map(speaker => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "speaker";
-        button.innerHTML = '<span class="speaker-copy"><span class="speaker-name"></span><span class="speaker-state"></span></span><span class="radio" aria-hidden="true"></span>';
-        button.prepend(this._icon(speaker.icon));
+        const copy = document.createElement("div");
+        copy.className = "speaker-copy";
+        const name = document.createElement("span");
+        name.className = "speaker-name";
+        const state = document.createElement("span");
+        state.className = "speaker-state";
+        copy.append(name, state);
+        const check = document.createElement("span");
+        check.className = "check";
+        check.setAttribute("aria-hidden", "true");
+        button.append(this._icon(speaker.icon), copy, check);
         button.addEventListener("click", () => {
-          this._selected = speaker.entity; this._notice = ""; this._update();
+          if (this._selected.has(speaker.entity)) this._selected.delete(speaker.entity);
+          else this._selected.add(speaker.entity);
+          this._notice = "";
+          this._update();
         });
-        q(".speakers").append(button);
-        this._ui.speakers.push({ button, speaker, name: button.querySelector(".speaker-name"), state: button.querySelector(".speaker-state") });
+        speakers.append(button);
+        return { button, speaker, name, state };
       });
-      this._config.presets.forEach(preset => {
+      const presetUi = [];
+      for (const preset of this._config.presets) {
+        if (!preset.text.trim()) continue;
         const button = document.createElement("button");
         button.type = "button";
         button.className = "preset";
         const label = document.createElement("span");
-        label.textContent = preset.label;
-        button.append(this._icon(preset.icon), label);
-        button.addEventListener("click", () => {
-          this._text = preset.text;
-          this._ui.text.value = this._text;
-          this._notice = "";
-          this._update();
-          this._ui.text.focus();
-        });
-        q(".presets").append(button);
-        this._ui.presets.push(button);
+        label.textContent = preset.text;
+        button.append(label);
+        button.addEventListener("click", () => this._speak(preset.text));
+        presets.append(button);
+        presetUi.push({ button, text: preset.text });
+      }
+      const custom = document.createElement("button");
+      custom.type = "button";
+      custom.className = "preset";
+      const customLabel = document.createElement("span");
+      customLabel.textContent = "Własny komunikat";
+      custom.append(customLabel);
+      custom.addEventListener("click", () => {
+        this._custom = !this._custom;
+        this._notice = "";
+        if (!this._custom) this._cancelRecognition();
+        this._update();
+        if (this._custom) text.focus();
       });
-      q(".preset-section").hidden = !this._config.presets.length;
-      this._ui.text.addEventListener("input", () => {
-        this._text = this._ui.text.value;
+      presets.append(custom);
+      text.addEventListener("input", () => {
+        this._text = text.value;
         this._notice = "";
         this._update();
       });
-      this._ui.mic.addEventListener("click", () => this._toggleDictation());
-      this._ui.send.addEventListener("click", () => this._send());
+      mic.addEventListener("click", () => this._toggleDictation());
+      send.addEventListener("click", () => this._send());
+      this._ui = {
+        text, count, mic, micLabel, micIcon, help, send, sendLabel, status,
+        composer, custom, speakers: speakerUi, presets: presetUi,
+      };
     }
 
     _name(speaker) {
-      return speaker?.name || this._hass?.states?.[speaker?.entity]?.attributes?.friendly_name || speaker?.entity || "Wybierz głośnik";
+      return speaker?.name || this._hass?.states?.[speaker?.entity]?.attributes?.friendly_name || speaker?.entity || "Głośnik";
     }
 
     _unavailable(entity) {
@@ -1201,16 +1342,27 @@ const HaCardKit = Object.freeze({
       return !state || state === "unavailable" || state === "unknown";
     }
 
-    _problem() {
+    _chosen() {
+      return this._config.speakers.filter(speaker => speaker.entity && this._selected.has(speaker.entity));
+    }
+
+    _targets() {
+      return this._chosen().filter(speaker => !this._unavailable(speaker.entity));
+    }
+
+    _problem(raw = this._text) {
+      const text = String(raw ?? "");
       if (this.preview) return "Podgląd karty — wysyłanie jest wyłączone.";
-      if (!this._config.script || this._config.speakers.some(s => !s.entity)) {
-        return "W edytorze karty wybierz skrypt i dwa głośniki.";
+      if (!this._config.script || !this._config.speakers.some(speaker => speaker.entity)) {
+        return "W edytorze karty wybierz skrypt i co najmniej jeden głośnik.";
       }
       if (!this._hass || this._hass.connected === false) return "Brak połączenia z Home Assistant.";
       if (this._unavailable(this._config.script)) return "Skrypt jest niedostępny. Sprawdź jego identyfikator w konfiguracji karty.";
-      if (this._unavailable(this._selected)) return "Wybrany głośnik jest niedostępny.";
-      if (!this._text.trim()) return "Wpisz tekst lub wybierz gotową wiadomość.";
-      if (this._text.length > LIMIT) return "Wiadomość może mieć maksymalnie 1000 znaków.";
+      const chosen = this._chosen();
+      if (!chosen.length) return "Wybierz co najmniej jeden głośnik.";
+      if (chosen.every(speaker => this._unavailable(speaker.entity))) return "Wybrany głośnik jest niedostępny.";
+      if (!text.trim()) return "Wpisz tekst lub wybierz gotową wiadomość.";
+      if (text.length > LIMIT) return "Wiadomość może mieć maksymalnie 1000 znaków.";
       return "";
     }
 
@@ -1231,26 +1383,36 @@ const HaCardKit = Object.freeze({
       const locked = this._sending || listening;
       ui.text.readOnly = locked;
       ui.count.textContent = `${ui.text.value.length} / ${LIMIT}`;
+      ui.composer.hidden = !this._custom;
+      ui.custom.setAttribute("aria-pressed", String(this._custom));
+      ui.custom.disabled = locked;
       ui.speakers.forEach(({ button, speaker, name, state }) => {
         const missing = this._unavailable(speaker.entity);
-        button.setAttribute("aria-pressed", String(this._selected === speaker.entity));
+        const pressed = this._selected.has(speaker.entity);
+        button.setAttribute("aria-pressed", String(pressed));
         button.disabled = locked || missing || this._hass?.connected === false;
         name.textContent = this._name(speaker);
         state.textContent = !this._hass || this._hass.connected === false ? "Brak połączenia" : missing ? "Niedostępny" : "Dostępny";
       });
-      ui.presets.forEach((button, index) => { button.disabled = locked || !this._config.presets[index].text.trim(); });
+      ui.presets.forEach(item => {
+        const button = item.button ?? item;
+        button.disabled = locked;
+      });
       const speechProblem = this._speechProblem();
       ui.mic.disabled = this._sending || !!speechProblem || !!this._stopping;
       ui.mic.hidden = !this._config.show_dictation;
-      ui.help.hidden = !this._config.show_dictation;
       ui.mic.setAttribute("aria-pressed", String(listening));
       ui.micLabel.textContent = this._stopping ? "Kończenie…" : listening ? "Zakończ" : "Dyktuj";
       ui.micIcon.setAttribute("icon", listening ? "mdi:stop" : "mdi:microphone");
-      ui.help.textContent = speechProblem || "Dyktowanie przez przeglądarkę. Rozpoznany tekst możesz poprawić.";
-      ui.send.disabled = locked || !!this._problem();
-      const selected = this._config.speakers.find(s => s.entity === this._selected);
-      ui.sendLabel.textContent = this._sending ? "Wysyłanie…" : `Odtwórz · ${this._name(selected)}`;
-      ui.status.textContent = this._notice || this._problem() || "Tekst zostanie przeczytany na wybranym głośniku.";
+      ui.help.textContent = speechProblem || "";
+      ui.help.hidden = !speechProblem || !this._config.show_dictation;
+      ui.send.disabled = locked || !!this._problem(this._text);
+      ui.sendLabel.textContent = this._sending ? "Wysyłanie…" : "Odtwórz";
+      const problem = this._problem(this._text);
+      const quiet = !String(this._text || "").trim();
+      const status = this._notice || (this._custom && problem && !quiet ? problem : "");
+      ui.status.textContent = status;
+      ui.status.hidden = !status;
       ui.status.classList.toggle("error", !!this._notice && this._noticeError);
     }
 
@@ -1260,31 +1422,41 @@ const HaCardKit = Object.freeze({
       this._update();
     }
 
-    async _send() {
+    async _speak(raw) {
       if (this._sending || this._recognition) return;
-      const problem = this._problem();
+      const problem = this._problem(raw);
       if (problem) { this._setNotice(problem, true); return; }
+      const text = String(raw).trim();
+      const targets = this._targets();
       const revision = this._revision;
-      const selected = this._config.speakers.find(s => s.entity === this._selected);
-      const name = this._name(selected);
       this._sending = true;
       this._setNotice("Wysyłanie wiadomości…");
+      const sent = [];
       try {
-        // Direct script service: forwards fields and reports script execution errors.
-        await this._hass.callService("script", this._config.script.slice(7), {
-          tekst: this._text.trim(), glosnik: selected.entity,
-        });
-        if (revision === this._revision) this._setNotice(`Wysłano do głośnika: ${name}.`);
+        for (const speaker of targets) {
+          if (revision !== this._revision) return;
+          await this._hass.callService("script", this._config.script.slice(7), {
+            tekst: text, glosnik: speaker.entity,
+          });
+          sent.push(this._name(speaker));
+        }
+        if (revision === this._revision) {
+          const label = sent.length === 1 ? "głośnika" : "głośników";
+          this._setNotice(`Wysłano do ${label}: ${sent.join(", ")}.`);
+        }
       } catch (error) {
         if (revision === this._revision) {
           const detail = typeof error?.message === "string" ? error.message : "Sprawdź połączenie i ślad wykonania skryptu.";
-          this._setNotice(`Nie udało się wysłać. ${detail}`, true);
+          const prefix = sent.length ? `Wysłano do: ${sent.join(", ")}. ` : "";
+          this._setNotice(`${prefix}Nie udało się wysłać. ${detail}`, true);
         }
       } finally {
         this._sending = false;
         this._update();
       }
     }
+
+    _send() { return this._speak(this._text); }
 
     _cancelRecognition() {
       const recognition = this._recognition;
@@ -1386,7 +1558,7 @@ const HaCardKit = Object.freeze({
 
   HaCardKit.register(TAG, PowiedzWDomuCard, {
     name: "Powiedz w domu",
-    description: "Dwa głośniki, wiadomość, dyktowanie i gotowe komunikaty.",
+    description: "Do trzech głośników, gotowe komunikaty i własna wiadomość.",
   });
 })();
 ;
@@ -1395,6 +1567,8 @@ const HaCardKit = Object.freeze({
 (() => {
   const TAG = "powiedz-w-domu-editor";
   if (customElements.get(TAG)) return;
+  const SPEAKERS = 3;
+  const PRESETS = 10;
 
   class AnnouncementEditor extends HTMLElement {
     constructor() {
@@ -1409,11 +1583,27 @@ const HaCardKit = Object.freeze({
       const signature = JSON.stringify(config);
       if (signature === this._signature) return;
       const defaults = customElements.get("powiedz-w-domu-card").getStubConfig();
-      this._config = { ...defaults, ...HaCardKit.clone(config) };
-      this._config.speakers = Array.from({ length: 2 }, (_, index) => ({
-        ...defaults.speakers[index], ...(config.speakers?.[index] || {}),
-      }));
-      this._config.presets = HaCardKit.clone(config.presets ?? defaults.presets);
+      const incoming = config || {};
+      this._config = { ...defaults, ...HaCardKit.clone(incoming) };
+      const incomingSpeakers = Array.isArray(incoming.speakers) ? incoming.speakers : [];
+      const declared = incomingSpeakers.some(speaker => speaker && Object.prototype.hasOwnProperty.call(speaker, "selected"));
+      const firstEntity = incomingSpeakers.findIndex(speaker => speaker?.entity);
+      this._config.speakers = Array.from({ length: SPEAKERS }, (_, index) => {
+        const item = incomingSpeakers[index] || {};
+        const fallback = defaults.speakers[index];
+        return {
+          entity: item.entity || "",
+          name: item.name == null ? fallback.name : String(item.name),
+          icon: item.icon || fallback.icon,
+          selected: declared ? item.selected === true : index === firstEntity,
+        };
+      });
+      const incomingPresets = Array.isArray(incoming.presets) ? incoming.presets : defaults.presets;
+      this._config.presets = Array.from({ length: PRESETS }, (_, index) => {
+        const item = incomingPresets[index] || {};
+        const text = item.text != null && item.text !== "" ? item.text : item.label;
+        return { text: text == null ? "" : String(text).slice(0, 1000) };
+      });
       this._signature = JSON.stringify(config);
       this._render();
     }
@@ -1446,11 +1636,23 @@ const HaCardKit = Object.freeze({
       return input;
     }
 
+    _switch(parent, labelText, checked, onChange) {
+      const label = document.createElement("label");
+      label.className = "switch";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = checked;
+      input.addEventListener("change", () => onChange(input.checked));
+      const caption = document.createElement("span");
+      caption.textContent = labelText;
+      label.append(input, caption);
+      parent.append(label);
+    }
+
     _entityField(parent, labelText, domain, value, onChange) {
       const label = document.createElement("label"); label.className = "field";
       const caption = document.createElement("span"); caption.textContent = labelText;
       const select = document.createElement("select");
-      select.required = true;
       const binding = { select, domain, value: value || "", signature: null };
       select.addEventListener("change", () => { binding.value = select.value; onChange(select.value); });
       this._selects.push(binding);
@@ -1471,7 +1673,7 @@ const HaCardKit = Object.freeze({
           const option = document.createElement("option"); option.value = value; option.textContent = text;
           binding.select.append(option);
         };
-        add("", "— Wybierz encję —");
+        add("", "— Nie wybrano —");
         if (binding.value && !entries.some(([id]) => id === binding.value)) {
           add(binding.value, `${binding.value} (brak encji)`);
         }
@@ -1480,94 +1682,82 @@ const HaCardKit = Object.freeze({
       }
     }
 
-    _presetAction(label, index, delta) {
-      const button = document.createElement("button"); button.type = "button";
-      button.textContent = label;
-      button.setAttribute("aria-label", `${label} — komunikat ${index + 1}`);
-      button.disabled = delta !== 0 && (index + delta < 0 || index + delta >= this._config.presets.length);
-      button.addEventListener("click", () => this._commit(config => {
-        if (!delta) config.presets.splice(index, 1);
-        else [config.presets[index], config.presets[index + delta]] = [config.presets[index + delta], config.presets[index]];
-      }, true));
-      return button;
-    }
-
     _render() {
       this._selects = [];
       this.shadowRoot.innerHTML = `
         <style>
-          :host {display:block;color:var(--primary-text-color);font-family:inherit}
-          * {box-sizing:border-box}
-          .form {display:grid;gap:18px;padding:4px 0}
-          .field {display:grid;gap:7px;font-size:13px;min-width:0}
-          .grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-          input,textarea,select,button {font:inherit;color:var(--primary-text-color)}
-          input,textarea,select {width:100%;min-width:0;min-height:42px;padding:9px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color);font-size:16px}
-          textarea {resize:vertical}
-          fieldset {margin:0;border:1px solid var(--divider-color);border-radius:10px;padding:14px;min-width:0;display:grid;gap:12px}
-          legend {font-size:14px;font-weight:500;padding:0 6px}
-          .help {color:var(--secondary-text-color);font-size:12px;line-height:1.6;margin:0}
-          .switch {display:flex;align-items:center;gap:8px;font-size:14px}
-          .switch input {width:18px;min-height:18px}
-          .presets {display:grid;gap:12px}
-          .actions {display:flex;flex-wrap:wrap;gap:8px}
-          button {min-height:40px;padding:8px 12px;background:var(--secondary-background-color);border:1px solid var(--divider-color);border-radius:8px;cursor:pointer}
-          button:disabled {opacity:.4;cursor:default}
-          button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible {outline:2px solid var(--primary-color);outline-offset:2px}
-          h3 {font-size:15px;font-weight:500;margin:0}
-          @media(max-width:420px) {.grid{grid-template-columns:1fr}}
+          :host { display: block; color: var(--primary-text-color); font-family: inherit; }
+          * { box-sizing: border-box; }
+          .form { display: grid; gap: 18px; padding: 4px 0; }
+          .field { display: grid; gap: 7px; font-size: 13px; min-width: 0; }
+          .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+          input, textarea, select, button { font: inherit; color: var(--primary-text-color); }
+          input, textarea, select { width: 100%; min-width: 0; min-height: 42px; padding: 9px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); font-size: 16px; }
+          textarea { resize: vertical; }
+          fieldset { margin: 0; border: 1px solid var(--divider-color); border-radius: 10px; padding: 14px; min-width: 0; display: grid; gap: 12px; }
+          legend { font-size: 14px; font-weight: 500; padding: 0 6px; }
+          .help { color: var(--secondary-text-color); font-size: 12px; line-height: 1.6; margin: 0; }
+          .switch { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+          .switch input { width: 18px; min-height: 18px; }
+          .slots { display: grid; gap: 12px; }
+          button { min-height: 40px; padding: 8px 12px; background: var(--secondary-background-color); border: 1px solid var(--divider-color); border-radius: 8px; cursor: pointer; }
+          button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+          h3 { font-size: 15px; font-weight: 500; margin: 0; }
+          @media (max-width: 420px) { .grid { grid-template-columns: 1fr; } }
         </style>
         <div class="form">
           <div class="general"></div>
-          <div class="speaker-settings"></div>
+          <h3>Głośniki</h3>
+          <p class="help speaker-help"></p>
+          <div class="speakers slots"></div>
           <div class="speech-settings"></div>
-          <h3>Gotowe wiadomości</h3><p class="help">Kliknięcie komunikatu wypełnia pole. Dopiero „Odtwórz” uruchamia skrypt.</p>
-          <div class="presets"></div><div><button type="button" class="add">+ Dodaj komunikat</button></div>
+          <h3>Komunikaty</h3>
+          <p class="help preset-help"></p>
+          <div class="presets slots"></div>
         </div>`;
-      const q = s => this.shadowRoot.querySelector(s);
-      const general = q(".general"); general.classList.add("form");
+      const q = selector => this.shadowRoot.querySelector(selector);
+      const general = q(".general");
       this._textField(general, "Tytuł karty", this._config.title, value => this._commit(c => { c.title = value; }));
       this._entityField(general, "Skrypt odtwarzania", "script", this._config.script, value => this._commit(c => { c.script = value; }));
-      const help = document.createElement("p"); help.className = "help";
-      help.textContent = "Skrypt musi przyjmować tekst i glosnik. Przykład do jednorazowego utworzenia w HA znajdziesz w examples/powiedz-w-domu-script.yaml.";
+      const help = document.createElement("p");
+      help.className = "help";
+      help.textContent = "Skrypt dostaje tekst i glosnik. Karta wywołuje go osobno dla każdego zaznaczonego głośnika. Przykład jest w examples/powiedz-w-domu-script.yaml.";
       general.append(help);
-      const speakers = q(".speaker-settings"); speakers.classList.add("form");
+      q(".speaker-help").textContent = "Trzy sloty. Pusty nie pojawia się na karcie. Można zaznaczyć kilka głośników naraz. „Zaznaczony domyślnie” włącza głośnik po otwarciu karty.";
       this._config.speakers.forEach((speaker, index) => {
         const fieldset = document.createElement("fieldset");
-        const legend = document.createElement("legend"); legend.textContent = `Głośnik ${index + 1}`; fieldset.append(legend);
-        this._entityField(fieldset, "Encja głośnika", "media_player", speaker.entity,
-          value => this._commit(c => { c.speakers[index].entity = value; }));
-        const grid = document.createElement("div"); grid.className = "grid";
+        const legend = document.createElement("legend");
+        legend.textContent = `Głośnik ${index + 1}`;
+        fieldset.append(legend);
+        this._entityField(fieldset, "Encja głośnika", "media_player", speaker.entity, value => this._commit(c => { c.speakers[index].entity = value; }));
+        const grid = document.createElement("div");
+        grid.className = "grid";
         this._textField(grid, "Nazwa na karcie", speaker.name, value => this._commit(c => { c.speakers[index].name = value; }));
         this._textField(grid, "Ikona (np. mdi:speaker)", speaker.icon, value => this._commit(c => { c.speakers[index].icon = value; }));
-        fieldset.append(grid); speakers.append(fieldset);
+        fieldset.append(grid);
+        this._switch(fieldset, "Zaznaczony domyślnie", speaker.selected === true, value => this._commit(c => { c.speakers[index].selected = value; }));
+        q(".speakers").append(fieldset);
       });
-      const speech = q(".speech-settings"); speech.classList.add("form");
-      const toggle = document.createElement("label"); toggle.className = "switch";
-      const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.checked = this._config.show_dictation !== false;
-      checkbox.addEventListener("change", () => this._commit(c => { c.show_dictation = checkbox.checked; }));
-      const caption = document.createElement("span"); caption.textContent = "Pokaż przycisk dyktowania";
-      toggle.append(checkbox, caption); speech.append(toggle);
+      const speech = q(".speech-settings");
+      this._switch(speech, "Pokaż przycisk dyktowania", this._config.show_dictation !== false, value => this._commit(c => { c.show_dictation = value; }));
       this._textField(speech, "Język dyktowania", this._config.language, value => this._commit(c => { c.language = value; }));
-      const speechHelp = document.createElement("p"); speechHelp.className = "help";
-      speechHelp.textContent = "Dyktowanie korzysta z przeglądarki, może używać chmury i wymaga HTTPS. Obsługa zależy od urządzenia. To ustawienie nie zmienia głosu TTS.";
+      const speechHelp = document.createElement("p");
+      speechHelp.className = "help";
+      speechHelp.textContent = "Dyktowanie pojawia się po wybraniu własnego komunikatu. Korzysta z przeglądarki, może używać chmury i wymaga HTTPS. Nie zmienia głosu TTS.";
       speech.append(speechHelp);
+      q(".preset-help").textContent = "Dziesięć slotów, jedno pole tekstu. Pusty slot nie pojawia się na karcie. Kliknięcie odtwarza ten tekst. Na karcie jest też własny komunikat z polem do wpisania.";
       this._config.presets.forEach((preset, index) => {
         const fieldset = document.createElement("fieldset");
-        const legend = document.createElement("legend"); legend.textContent = `Komunikat ${index + 1}`; fieldset.append(legend);
-        this._textField(fieldset, "Etykieta przycisku", preset.label, value => this._commit(c => { c.presets[index].label = value; }));
-        this._textField(fieldset, "Treść wiadomości", preset.text, value => this._commit(c => { c.presets[index].text = value; }), { multiline: true, limit: 1000 });
-        this._textField(fieldset, "Ikona", preset.icon, value => this._commit(c => { c.presets[index].icon = value; }));
-        const actions = document.createElement("div"); actions.className = "actions";
-        actions.append(this._presetAction("W górę", index, -1), this._presetAction("W dół", index, 1), this._presetAction("Usuń", index, 0));
-        fieldset.append(actions); q(".presets").append(fieldset);
+        const legend = document.createElement("legend");
+        legend.textContent = `Komunikat ${index + 1}`;
+        fieldset.append(legend);
+        this._textField(fieldset, "Tekst", preset.text, value => this._commit(c => { c.presets[index].text = value; }), { multiline: true, limit: 1000 });
+        q(".presets").append(fieldset);
       });
-      q(".add").addEventListener("click", () => this._commit(c => {
-        c.presets.push({ label: "Nowy komunikat", text: "", icon: "mdi:message-text-outline" });
-      }, true));
       this._updateOptions();
     }
   }
+
   customElements.define(TAG, AnnouncementEditor);
 })();
 ;

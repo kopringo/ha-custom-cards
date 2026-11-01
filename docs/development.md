@@ -89,7 +89,7 @@ w selektorze. Demo obsługuje proste formularze `getConfigForm()` z polami tekst
 i liczbowymi oraz pełne edytory kart „Powiedz w domu” i „Pomieszczenie”. Po rozbudowaniu schematu
 o inne selektory testuj je w HA lub rozszerz demo.
 
-Demo symuluje głośniki i skrypt. Kliknięcie „Odtwórz” pokazuje argumenty wywołania.
+Demo symuluje głośniki i skrypt. Kliknięcie komunikatu albo „Odtwórz” pokazuje argumenty wywołania.
 Opcje „Salon niedostępny” i „Symuluj błąd skryptu” ułatwiają testowanie błędów.
 Nie jest to pełny frontend HA. Dyktowanie używa rzeczywistej funkcji przeglądarki
 po kliknięciu przycisku i przyznaniu uprawnień.

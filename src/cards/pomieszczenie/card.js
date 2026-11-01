@@ -35,6 +35,7 @@
       return {
         name: "Pomieszczenie",
         climate: "",
+        climate_temperature: "",
         thermometer: "",
         plug: "",
         power: "",
@@ -99,7 +100,7 @@
       const config = this._config;
       if (!config) return 4;
       let rows = 2;
-      if (config.thermometer || config.climate) rows += 2;
+      if (config.thermometer || config.climate || config.climate_temperature) rows += 2;
       if (config.plug || config.power) rows += 1;
       if (config.lights.some(light => light.entity)) rows += 1;
       return rows;
@@ -136,6 +137,7 @@
       return {
         name: String(config.name ?? "").trim().slice(0, 80) || "Pomieszczenie",
         climate: entity(config.climate, ID.climate, "Termostat musi być encją climate."),
+        climate_temperature: entity(config.climate_temperature, ID.sensor, "Temperatura termostatu musi być encją sensor."),
         thermometer: entity(config.thermometer, ID.sensor, "Termometr musi być encją sensor."),
         plug: entity(config.plug, ID.switch, "Gniazdko musi być encją switch."),
         power: entity(config.power, ID.sensor, "Czujnik mocy musi być encją sensor."),
@@ -157,6 +159,11 @@
         .kicker { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary-text-color); }
         .thermo-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .reading { margin: 10px 0 0; font-size: 34px; font-weight: 500; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+        .setpoint { display: block; }
+        .setpoint-label { margin: 12px 0 0; }
+        .thermostat.with-measure .setpoint { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+        .thermostat.with-measure .target-reading { margin-top: 2px; font-size: 22px; }
+        .thermostat.with-measure .stepper { margin-top: 0; }
         .unit { margin-left: 2px; font-size: 15px; font-weight: 500; letter-spacing: 0; }
         .sub { margin: 8px 0 0; min-height: 16px; font-size: 12px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
         .action { margin: 0; font-size: 12px; font-weight: 500; color: var(--secondary-text-color); text-align: right; }
@@ -213,7 +220,7 @@
       thermometer.className = "tile thermometer";
       const thermometerKicker = document.createElement("p");
       thermometerKicker.className = "kicker";
-      thermometerKicker.textContent = "Termometr";
+      thermometerKicker.textContent = "W pokoju";
       const thermometerReading = document.createElement("p");
       thermometerReading.className = "reading";
       const thermometerValue = document.createElement("span");
@@ -234,12 +241,30 @@
       const action = document.createElement("p");
       action.className = "action";
       thermoTop.append(thermostatKicker, action);
+      const measured = document.createElement("div");
+      measured.className = "measured";
+      const measuredReading = document.createElement("p");
+      measuredReading.className = "reading";
+      const climateValue = document.createElement("span");
+      const climateUnit = document.createElement("span");
+      climateUnit.className = "unit";
+      measuredReading.append(climateValue, climateUnit);
+      const climateSub = document.createElement("p");
+      climateSub.className = "sub";
+      measured.append(measuredReading, climateSub);
+      const setpoint = document.createElement("div");
+      setpoint.className = "setpoint";
+      const setpointCopy = document.createElement("div");
+      const setpointLabel = document.createElement("p");
+      setpointLabel.className = "kicker setpoint-label";
+      setpointLabel.textContent = "Zadana";
       const targetReading = document.createElement("p");
-      targetReading.className = "reading";
+      targetReading.className = "reading target-reading";
       const targetValue = document.createElement("span");
       const targetUnit = document.createElement("span");
       targetUnit.className = "unit";
       targetReading.append(targetValue, targetUnit);
+      setpointCopy.append(setpointLabel, targetReading);
       const stepper = document.createElement("div");
       stepper.className = "stepper";
       const minus = document.createElement("button");
@@ -253,11 +278,12 @@
       plus.setAttribute("aria-label", "Podnieś temperaturę zadaną");
       plus.addEventListener("click", () => this._nudge(1));
       stepper.append(minus, plus);
+      setpoint.append(setpointCopy, stepper);
       const modes = document.createElement("div");
       modes.className = "modes";
       modes.setAttribute("role", "group");
       modes.setAttribute("aria-label", "Tryb termostatu");
-      thermostat.append(thermoTop, targetReading, stepper, modes);
+      thermostat.append(thermoTop, measured, setpoint, modes);
       metrics.append(thermometer, thermostat);
 
       // Read-only on purpose: the plug reports state and power, it is not a switch.
@@ -309,7 +335,8 @@
       this._modeSignature = "";
       this._ui = {
         name, empty, metrics, thermometer, thermometerValue, thermometerUnit, thermometerSub,
-        thermostat, action, targetValue, targetUnit, minus, plus, modes, modeButtons: [],
+        thermostat, thermostatKicker, measured, climateValue, climateUnit, climateSub, setpoint, setpointLabel,
+        action, targetValue, targetUnit, minus, plus, modes, modeButtons: [],
         plug, plugName, plugState, plugPower, lights, lightButtons, status,
       };
     }
@@ -319,7 +346,7 @@
       const ui = this._ui;
       ui.name.textContent = this._config.name;
       const showThermometer = !!this._config.thermometer;
-      const showThermostat = !!this._config.climate;
+      const showThermostat = !!(this._config.climate || this._config.climate_temperature);
       const showPlug = !!(this._config.plug || this._config.power);
       const showLights = ui.lightButtons.length > 0;
       const configured = showThermometer || showThermostat || showPlug || showLights;
@@ -353,29 +380,44 @@
       const name = this._friendly(entity, "");
       ui.thermometerSub.textContent = unavailable ? "Niedostępny" : name;
       ui.thermometer.setAttribute("aria-label", unavailable
-        ? "Termometr niedostępny"
-        : `Termometr ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
+        ? "Temperatura w pokoju niedostępna"
+        : `Temperatura w pokoju ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
     }
 
     _updateThermostat() {
       const ui = this._ui;
-      const unavailable = this._unavailable(this._config.climate);
-      const range = this._rangeTarget();
-      const target = this._displayedTarget();
+      const hasClimate = !!this._config.climate;
+      const unavailable = hasClimate && this._unavailable(this._config.climate);
+      const showMeasure = !!this._config.climate_temperature;
+      setHidden(ui.measured, !showMeasure);
+      setHidden(ui.setpoint, !hasClimate);
+      setHidden(ui.setpointLabel, !showMeasure);
+      ui.thermostat.className = "tile thermostat";
+      ui.thermostat.classList.toggle("with-measure", showMeasure);
+      ui.thermostatKicker.textContent = showMeasure ? "Termostat" : "Zadana";
+      if (showMeasure) {
+        const sensor = this._config.climate_temperature;
+        const sensorDown = this._unavailable(sensor);
+        this._setReading(ui.climateValue, ui.climateUnit, sensorDown ? null : this._numericState(sensor), this._unit(sensor));
+        ui.climateSub.textContent = sensorDown ? "Niedostępny" : this._friendly(sensor, "");
+      }
+      const range = hasClimate ? this._rangeTarget() : null;
+      const target = hasClimate ? this._displayedTarget() : null;
       if (target != null) this._setReading(ui.targetValue, ui.targetUnit, target, this._unit(this._config.climate));
       else if (range) {
         ui.targetValue.textContent = `${this._formatNumber(range.low, this._digits())}–${this._formatNumber(range.high, this._digits())}`;
         ui.targetUnit.textContent = this._unit(this._config.climate);
       } else this._setReading(ui.targetValue, ui.targetUnit, null, "");
-      const action = this._action();
-      ui.action.textContent = unavailable ? "Niedostępny" : action.label;
+      const action = hasClimate ? this._action() : { label: "", kind: "" };
+      ui.action.textContent = !hasClimate ? "" : unavailable ? "Niedostępny" : action.label;
       ui.action.className = "action";
-      if (!unavailable && action.kind) ui.action.classList.toggle(action.kind, true);
+      if (hasClimate && !unavailable && action.kind) ui.action.classList.toggle(action.kind, true);
       const { min, max } = this._bounds();
       ui.minus.disabled = !this._canAdjustTemp() || target == null || target <= min + 0.001;
       ui.plus.disabled = !this._canAdjustTemp() || target == null || target >= max - 0.001;
-      ui.thermostat.setAttribute("aria-label", `Temperatura zadana ${ui.targetValue.textContent} ${ui.targetUnit.textContent}`.trim());
-      this._syncModes(unavailable);
+      const measuredText = showMeasure ? `Pomiar termostatu ${ui.climateValue.textContent} ${ui.climateUnit.textContent}. ` : "";
+      ui.thermostat.setAttribute("aria-label", `${measuredText}Temperatura zadana ${ui.targetValue.textContent} ${ui.targetUnit.textContent}`.trim());
+      this._syncModes(!hasClimate || unavailable);
     }
 
     _syncModes(unavailable) {

@@ -7,7 +7,7 @@ repozytorium GitHub przez HACS. Gotowy pakiet zawiera trzy karty:
 | Karta              | Typ                            | Konfiguracja                                                                 |
 | ------------------ | ------------------------------ | ---------------------------------------------------------------------------- |
 | **Pusta karta**    | `custom:ha-starter-card`       | Wizualny formularz tytułu i wysokości. Pusta zawartość do rozbudowy.         |
-| **Powiedz w domu** | `custom:powiedz-w-domu-card`   | Wizualny edytor dwóch głośników, skryptu, dyktowania i gotowych wiadomości.  |
+| **Powiedz w domu** | `custom:powiedz-w-domu-card`   | Do trzech głośników, gotowe komunikaty i własna wiadomość.                   |
 | **Pomieszczenie**  | `custom:ha-pomieszczenie-card` | Nazwa, termostat, termometr, odczyt gniazdka i do trzech świateł.            |
 
 
@@ -73,9 +73,10 @@ Ta sama nazwa elementu nie może zostać zarejestrowana dwukrotnie w jednej sesj
 2. Otwórz edytor YAML i wklej [examples/powiedz-w-domu-script.yaml](examples/powiedz-w-domu-script.yaml).
 3. Podmień `tts.twoj_silnik` na własną encję TTS z polskim głosem.
 4. Zapisz skrypt. Zalecany identyfikator: `script.powiedz_w_domu`.
-5. W wizualnym edytorze karty wybierz ten skrypt i dwa głośniki.
+5. W wizualnym edytorze karty wybierz ten skrypt i głośniki.
 
-Skrypt musi przyjmować parametry `tekst` i `glosnik`. Jeżeli wcześniej
+Skrypt musi przyjmować parametry `tekst` i `glosnik`. Przy kilku zaznaczonych
+głośnikach karta wywołuje go po kolei, raz na głośnik. Jeżeli wcześniej
 utworzyłeś wariant czytający helpery `input_text` i `input_select`, zastąp go
 dołączonym skryptem parametrycznym albo utwórz osobny. Ta karta nie używa helperów.
 Nie wklejaj pliku jednego skryptu bezpośrednio na najwyższym poziomie `scripts.yaml`;
@@ -86,15 +87,14 @@ w karcie dotyczy wyłącznie rozpoznawania dyktowanej wypowiedzi.
 
 ## Co można zmieniać w edytorze karty
 
-- Tytuł, skrypt i dwa głośniki wybierane z list encji.
-- Etykiety głośników oraz ikony MDI.
+- Tytuł, skrypt i do trzech głośników wybieranych z list encji.
+- Nazwę, ikonę i to, czy głośnik jest zaznaczony domyślnie.
 - Widoczność przycisku dyktowania i język rozpoznawania.
-- Treść, etykietę i ikonę każdego gotowego komunikatu.
-- Dodawanie, usuwanie i kolejność komunikatów.
+- Do dziesięciu komunikatów. Każdy ma jedno pole tekstu.
 
-Wybranie gotowego komunikatu **wstawia tekst do pola**. Odtwarzanie uruchamia
-dopiero przycisk **Odtwórz**. Pusty komunikat podczas edycji jest dozwolony,
-ale jego przycisk pozostaje nieaktywny do uzupełnienia treści.
+Pusty slot głośnika albo komunikatu nie pojawia się na karcie. Na karcie można
+zaznaczyć kilka głośników naraz. Gotowy komunikat odtwarza się od razu.
+**Własny komunikat** pokazuje pole tekstu i dyktowanie; odtwarza je przycisk **Odtwórz**.
 
 ## Karta pomieszczenia
 
@@ -102,7 +102,8 @@ W edytorze karty ustawiasz:
 
 - nazwę pomieszczenia,
 - termostat (`climate`) — temperatura zadana, przyciski −/+ i tryb,
-- termometr (`sensor` temperatury),
+- temperatura termostatu (`sensor` temperatury z samego urządzenia),
+- termometr w pokoju (`sensor` temperatury z zewnętrznego czujnika),
 - gniazdko (`switch`) i opcjonalnie czujnik mocy — tylko odczyt, bez wyłączania,
 - do trzech świateł (`light` albo `switch`); pusty slot nie jest pokazywany.
 

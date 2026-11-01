@@ -136,7 +136,12 @@
         limit: 80, placeholder: "Pomieszczenie",
       });
       this._entityField(general, "Termostat", "climate", this._config.climate, value => this._commit(config => { config.climate = value; }));
-      this._entityField(general, "Termometr", "sensor", this._config.thermometer, value => this._commit(config => { config.thermometer = value; }), "temperature");
+      this._entityField(general, "Temperatura termostatu", "sensor", this._config.climate_temperature, value => this._commit(config => { config.climate_temperature = value; }), "temperature");
+      this._entityField(general, "Termometr w pokoju", "sensor", this._config.thermometer, value => this._commit(config => { config.thermometer = value; }), "temperature");
+      const climateHelp = document.createElement("p");
+      climateHelp.className = "help";
+      climateHelp.textContent = "Termometr w pokoju to czujnik w pomieszczeniu. Temperatura termostatu to pomiar z samego urządzenia, na przykład sensor.0x…_local_temperature. Zadana temperatura zostaje osobno.";
+      general.append(climateHelp);
       this._entityField(general, "Gniazdko", "switch", this._config.plug, value => this._commit(config => { config.plug = value; }));
       this._entityField(general, "Moc gniazdka", "sensor", this._config.power, value => this._commit(config => { config.power = value; }), "power");
       q(".plug-help").textContent = "Gniazdko jest tylko informacją: czy jest włączone i jaki jest pobór mocy. Z tej karty nie da się go wyłączyć. Bez czujnika mocy karta sprawdzi atrybuty gniazdka.";

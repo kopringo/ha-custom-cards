@@ -6,19 +6,14 @@ speakers:
   - entity: media_player.salon
     name: Salon
     icon: mdi:sofa
+    selected: true
   - entity: media_player.kuchnia
     name: Kuchnia
     icon: mdi:pot-steam
+    selected: false
+  # Trzeci slot może zostać pusty — wtedy nie pojawia się na karcie.
 presets:
-  - label: Obiad gotowy
-    text: Obiad gotowy. Zapraszam do stołu!
-    icon: mdi:silverware-fork-knife
-  - label: Wychodzimy za 5 min
-    text: Wychodzimy za pięć minut. Przygotujcie się!
-    icon: mdi:door-open
-  - label: Chodźcie do salonu
-    text: Proszę, przyjdźcie na chwilę do salonu.
-    icon: mdi:account-group
-  - label: Dobranoc
-    text: Czas spać. Dobranoc!
-    icon: mdi:weather-night
+  - text: Obiad gotowy. Zapraszam do stołu!
+  - text: Wychodzimy za pięć minut. Przygotujcie się!
+  - text: Proszę, przyjdźcie na chwilę do salonu.
+  - text: Czas spać. Dobranoc!

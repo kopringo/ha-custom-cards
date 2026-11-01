@@ -1,6 +1,7 @@
 # Wklej w edytorze YAML NOWEGO skryptu w interfejsie HA.
 # Ustaw identyfikator zapisanej encji na script.powiedz_w_domu
 # lub zmień pole script w konfiguracji karty na rzeczywisty identyfikator.
+# Karta wywołuje ten skrypt osobno dla każdego zaznaczonego głośnika.
 alias: Powiedz w domu
 description: Odczytuje przekazany tekst na wybranym głośniku.
 icon: mdi:bullhorn-outline

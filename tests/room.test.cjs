@@ -94,6 +94,7 @@ test('rejects bad domains, too many lights and duplicates without replacing a va
   for (const bad of [
     { ...config, climate: 'switch.salon' },
     { ...config, thermometer: 'climate.salon' },
+    { ...config, climate_temperature: 'climate.salon' },
     { ...config, plug: 'light.salon' },
     { ...config, power: 'switch.salon' },
     { ...config, lights: [...config.lights, { entity: 'light.czwarte' }] },
@@ -112,6 +113,8 @@ test('shows room name, temperatures, plug power and only selected lights', () =>
   assert.equal(card._ui.thermometerValue.textContent, '21,4');
   assert.equal(card._ui.thermometerUnit.textContent, '°C');
   assert.equal(card._ui.targetValue.textContent, '21,5');
+  assert.equal(card._ui.thermostatKicker.textContent, 'Zadana');
+  assert.equal(card._ui.measured.hidden, true);
   assert.equal(card._ui.action.textContent, 'Grzeje');
   assert.equal(card._ui.plug.tagName, 'DIV');
   assert.equal(card._ui.plugState.textContent, 'Włączone');
@@ -123,6 +126,29 @@ test('shows room name, temperatures, plug power and only selected lights', () =>
   assert.equal(card._ui.lightButtons[1].button.getAttribute('aria-pressed'), 'false');
   assert.equal(card._ui.modeButtons.map(item => item.mode).join(','), 'off,heat,auto');
   assert.equal(card._ui.empty.hidden, true);
+});
+
+test('shows the thermostat sensor beside the room thermometer', () => {
+  const id = 'sensor.0x983268fffe996937_local_temperature';
+  const { card, config, hass } = setup();
+  hass.states[id] = {
+    state: '20.1',
+    attributes: { friendly_name: 'Pomiar termostatu', unit_of_measurement: '°C', device_class: 'temperature' },
+  };
+  card.setConfig({ ...config, climate_temperature: id });
+  card.hass = hass;
+  assert.equal(card._ui.thermometerValue.textContent, '21,4');
+  assert.equal(card._ui.climateValue.textContent, '20,1');
+  assert.equal(card._ui.climateUnit.textContent, '°C');
+  assert.equal(card._ui.climateSub.textContent, 'Pomiar termostatu');
+  assert.equal(card._ui.targetValue.textContent, '21,5');
+  assert.equal(card._ui.thermostatKicker.textContent, 'Termostat');
+  assert.equal(card._ui.measured.hidden, false);
+  assert.equal(card._ui.setpoint.hidden, false);
+  assert.equal(card._ui.thermostat.classList.contains('with-measure'), true);
+  hass.states[id].state = '19.6';
+  card.hass = hass;
+  assert.equal(card._ui.climateValue.textContent, '19,6');
 });
 
 test('plug is not a control and reads power from the plug when no sensor is set', async () => {

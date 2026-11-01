@@ -56,9 +56,11 @@
     const hass={connected:true,states:{
       'media_player.salon':{state:'idle',attributes:{friendly_name:'Salon'}},
       'media_player.kuchnia':{state:'idle',attributes:{friendly_name:'Kuchnia'}},
+      'media_player.sypialnia':{state:'idle',attributes:{friendly_name:'Sypialnia'}},
       'script.powiedz_w_domu':{state:'off',attributes:{friendly_name:'Powiedz w domu'}},
       'climate.salon':{state:'heat',attributes:{friendly_name:'Termostat salonu',temperature:21.5,current_temperature:20.8,min_temp:5,max_temp:30,target_temp_step:0.5,temperature_unit:'°C',hvac_modes:['off','heat','auto'],hvac_action:'heating'}},
       'sensor.salon_temperatura':{state:'21.4',attributes:{friendly_name:'Temperatura salonu',unit_of_measurement:'°C',device_class:'temperature'}},
+      'sensor.0x983268fffe996937_local_temperature':{state:'20.8',attributes:{friendly_name:'Pomiar termostatu',unit_of_measurement:'°C',device_class:'temperature'}},
       'sensor.salon_wilgotnosc':{state:'48',attributes:{friendly_name:'Wilgotność salonu',unit_of_measurement:'%',device_class:'humidity'}},
       'switch.gniazdko_salon':{state:'on',attributes:{friendly_name:'Gniazdko salonu'}},
       'sensor.gniazdko_salon_moc':{state:'86.2',attributes:{friendly_name:'Moc gniazdka',unit_of_measurement:'W',device_class:'power'}},
@@ -67,8 +69,9 @@
       'light.salon_kinkiet':{state:'off',attributes:{friendly_name:'Kinkiet'}},
       'light.salon_tasma':{state:'off',attributes:{friendly_name:'Taśma LED'}},
       'switch.salon_lampa':{state:'off',attributes:{friendly_name:'Lampa na switch'}}
-    },async callService(domain,service,data){
-      $('calls').textContent=JSON.stringify({domain,service,data},null,2);
+    },log:[],async callService(domain,service,data){
+      hass.log.push({domain,service,data});
+      $('calls').textContent=JSON.stringify(hass.log,null,2);
       await new Promise(resolve=>setTimeout(resolve,200));
       if($('fail').checked)throw new Error(domain==='script'?'Przykładowy błąd TTS.':'Przykładowy błąd usługi.');
       const entity=data&&data.entity_id&&hass.states[data.entity_id];
@@ -88,12 +91,16 @@
       const Klass=customElements.get(type);
       config={type:'custom:'+type,...Klass.getStubConfig(hass)};
       if(type==='powiedz-w-domu-card'){
-        config.script='script.powiedz_w_domu';config.speakers[0].entity='media_player.salon';config.speakers[1].entity='media_player.kuchnia';
+        config.script='script.powiedz_w_domu';
+        config.speakers[0].entity='media_player.salon';config.speakers[0].selected=true;
+        config.speakers[1].entity='media_player.kuchnia';config.speakers[1].selected=false;
+        hass.log=[];
       }
       if(type==='ha-pomieszczenie-card'){
         config.name='Salon';
         config.climate='climate.salon';
         config.thermometer='sensor.salon_temperatura';
+        config.climate_temperature='sensor.0x983268fffe996937_local_temperature';
         config.plug='switch.gniazdko_salon';
         config.power='sensor.gniazdko_salon_moc';
         config.lights[0].entity='light.salon_glowna';

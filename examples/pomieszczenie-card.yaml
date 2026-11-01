@@ -2,6 +2,7 @@ type: custom:ha-pomieszczenie-card
 name: Salon
 climate: climate.salon
 thermometer: sensor.salon_temperatura
+climate_temperature: sensor.0x983268fffe996937_local_temperature
 plug: switch.gniazdko_salon
 power: sensor.gniazdko_salon_moc
 lights:

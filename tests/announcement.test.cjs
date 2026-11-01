@@ -36,9 +36,9 @@ function setup({ secure = true, speech = true, config: override } = {}) {
   class TestCard extends Card {
     _build() {
       this._ui = { text: node(), count: node(), mic: node(), micLabel: node(), micIcon: node(),
-        help: node(), send: node(), sendLabel: node(), status: node(),
-        speakers: this._config.speakers.map(speaker => ({ speaker, button: node(), name: node(), state: node() })),
-        presets: this._config.presets.map(() => node()) };
+        help: node(), send: node(), sendLabel: node(), status: node(), composer: node(), custom: node(),
+        speakers: this._config.speakers.filter(speaker => speaker.entity).map(speaker => ({ speaker, button: node(), name: node(), state: node() })),
+        presets: this._config.presets.filter(preset => preset.text.trim()).map(preset => ({ button: node(), text: preset.text })) };
       this._ui.text.value = this._text;
     }
   }
@@ -65,19 +65,24 @@ test('validates distinct speakers, script domain, and preset contents', () => {
   const { card, config } = setup();
   for (const bad of [
     { ...config, script: 'light.salon' },
-    { ...config, speakers: config.speakers.slice(0, 1) },
+    { ...config, speakers: [...config.speakers, { entity: 'media_player.a' }, { entity: 'media_player.b' }] },
     { ...config, speakers: [config.speakers[0], config.speakers[0]] },
     { ...config, presets: [{ text: 42 }] },
     { ...config, presets: [{ text: 'x'.repeat(1001) }] },
+    { ...config, presets: Array.from({ length: 11 }, () => ({ text: 'Hej' })) },
   ]) assert.throws(() => card.setConfig(bad));
-  card.setConfig({ ...config, presets: [] });
-  assert.equal(card._config.presets.length, 0);
+  card.setConfig({ ...config, speakers: config.speakers.slice(0, 1), presets: [] });
+  assert.equal(card._config.speakers.length, 1);
+  assert.equal(card._config.presets.length, 10);
+  assert.equal(card._config.presets.every(preset => preset.text === ''), true);
+  card.setConfig({ ...config, presets: [{ label: 'Hej' }] });
+  assert.equal(card._config.presets[0].text, 'Hej');
 });
 
 test('sends exact script fields for selected speaker and retains text', async () => {
   const { card, calls, text } = setup();
   text('  Obiad gotowy!  ');
-  card._selected = 'media_player.kuchnia';
+  card._selected = new Set(['media_player.kuchnia']);
   await card._send();
   assert.equal(JSON.stringify(calls), JSON.stringify([
     ['script', 'powiedz_w_domu', { tekst: 'Obiad gotowy!', glosnik: 'media_player.kuchnia' }],
@@ -204,14 +209,40 @@ test('can load resource twice without duplicate custom element registration', ()
 
 test('new card starts incomplete and asks for configuration, without throwing', async () => {
   const { card, calls } = setup({ config: {} });
+  assert.equal(card._ui.send.disabled, true);
+  await card._send();
   assert.match(card._ui.status.textContent, /wybierz skrypt/);
-  await card._send(); assert.equal(calls.length, 0);
+  assert.equal(calls.length, 0);
 });
 
-test('incomplete preset can be edited but its runtime button is disabled', () => {
-  const { card, config } = setup();
-  card.setConfig({ ...config, presets: [{ label: 'Nowy', text: '' }] });
-  assert.equal(card._ui.presets[0].disabled, true);
+test('empty preset slot stays hidden and a filled one can be spoken', async () => {
+  const { card, config, calls } = setup();
+  card.setConfig({ ...config, presets: [{ text: '' }, { text: 'Dobranoc' }] });
+  assert.equal(card._ui.presets.length, 1);
+  await card._speak(card._ui.presets[0].text);
+  assert.equal(JSON.stringify(calls[0]), JSON.stringify(['script', 'powiedz_w_domu', { tekst: 'Dobranoc', glosnik: 'media_player.salon' }]));
+});
+
+test('default flag selects speakers, an empty slot is hidden, and several receive one message', async () => {
+  const { card, config, calls, text } = setup();
+  assert.equal(card._selected.has('media_player.salon'), true);
+  assert.equal(card._selected.has('media_player.kuchnia'), false);
+  card.setConfig({
+    ...config,
+    speakers: [
+      { entity: 'media_player.salon', name: 'Salon', selected: true },
+      { entity: '', name: 'Pusty' },
+      { entity: 'media_player.kuchnia', name: 'Kuchnia', selected: true },
+    ],
+  });
+  assert.equal(card._ui.speakers.length, 2);
+  assert.equal(card._selected.size, 2);
+  text('Cześć');
+  await card._send();
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][2].glosnik, 'media_player.salon');
+  assert.equal(calls[1][2].glosnik, 'media_player.kuchnia');
+  assert.match(card._ui.status.textContent, /Salon, Kuchnia/);
 });
 
 test('card preview blocks script calls and microphone', async () => {
@@ -246,17 +277,26 @@ test('editor preserves unrelated HA fields and emits complete configuration', ()
   assert.equal(editor.renders, renders); // Configuration echo must not steal input focus.
 });
 
-test('editor adds, reorders and removes presets without mutating incoming config', () => {
-  const { elements, config } = setup();
+test('editor keeps three speaker slots and ten message slots without mutating input', () => {
+  const { elements } = setup();
   const Editor = elements.get('powiedz-w-domu-editor');
   class TestEditor extends Editor { _render() {} dispatchEvent() { return true; } }
   const editor = new TestEditor();
-  const input = { ...config, presets: [{ label: 'Pierwszy', text: 'A' }, { label: 'Drugi', text: 'B' }] };
+  const input = {
+    script: 'script.powiedz_w_domu',
+    speakers: [{ entity: 'media_player.salon', name: 'Salon' }],
+    presets: [{ label: 'Pierwszy', text: 'A' }],
+  };
   editor.setConfig(input);
-  editor._commit(c => { c.presets.push({ label: 'Trzeci', text: 'C' }); }, true);
-  assert.equal(input.presets.length, 2); assert.equal(editor._config.presets.length, 3);
-  editor._commit(c => { [c.presets[0], c.presets[1]] = [c.presets[1], c.presets[0]]; }, true);
-  assert.equal(editor._config.presets[0].text, 'B');
-  editor._commit(c => { c.presets.splice(0, 1); }, true);
+  assert.equal(editor._config.speakers.length, 3);
+  assert.equal(editor._config.speakers[0].selected, true);
+  assert.equal(editor._config.speakers[1].entity, '');
+  assert.equal(editor._config.presets.length, 10);
   assert.equal(editor._config.presets[0].text, 'A');
+  assert.equal(editor._config.presets[1].text, '');
+  editor._commit(c => { c.speakers[1].entity = 'media_player.kuchnia'; c.speakers[1].selected = true; c.presets[1].text = 'B'; });
+  assert.equal(input.speakers.length, 1);
+  assert.equal(input.presets.length, 1);
+  assert.equal(editor._config.presets[1].text, 'B');
+  assert.equal(editor._config.speakers[1].selected, true);
 });

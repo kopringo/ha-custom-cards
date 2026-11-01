@@ -1,0 +1,47 @@
+# Wklej w edytorze YAML NOWEGO skryptu w interfejsie HA.
+# Ustaw identyfikator zapisanej encji na script.powiedz_w_domu
+# lub zmień pole script w konfiguracji karty na rzeczywisty identyfikator.
+alias: Powiedz w domu
+description: Odczytuje przekazany tekst na wybranym głośniku.
+icon: mdi:bullhorn-outline
+mode: queued
+max: 5
+fields:
+  tekst:
+    name: Tekst
+    required: true
+    selector:
+      text:
+        multiline: true
+  glosnik:
+    name: Głośnik
+    required: true
+    selector:
+      entity:
+        domain: media_player
+sequence:
+  - if:
+      - condition: template
+        value_template: >-
+          {{ tekst is not defined or tekst is not string
+             or (tekst | trim | length) == 0 or (tekst | length) > 1000 }}
+    then:
+      - stop: Podaj niepusty tekst o długości do 1000 znaków.
+        error: true
+  - if:
+      - condition: template
+        value_template: >-
+          {{ glosnik is not defined or glosnik is not string
+             or glosnik not in (states.media_player | map(attribute='entity_id') | list)
+             or states(glosnik) in ['unavailable', 'unknown'] }}
+    then:
+      - stop: Wybrany głośnik nie istnieje lub jest niedostępny.
+        error: true
+  - action: tts.speak
+    target:
+      # ZMIEŃ na rzeczywistą encję TTS z ustawionym polskim głosem.
+      entity_id: tts.twoj_silnik
+    data:
+      media_player_entity_id: "{{ glosnik }}"
+      message: "{{ tekst | trim }}"
+      cache: true

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Moje karty HA — lokalny podgląd</title>
+  <style>
+    :root{color-scheme:light;--primary-color:#0289b8;--primary-text-color:#202124;--secondary-text-color:#66707b;--card-background-color:#fff;--secondary-background-color:#f1f5f8;--divider-color:#dce2e7;--error-color:#b32424;--text-primary-color:#fff}
+    :root[data-dark]{color-scheme:dark;--primary-color:#79d4f7;--primary-text-color:#e8eaed;--secondary-text-color:#adb5be;--card-background-color:#202124;--secondary-background-color:#2a2e33;--divider-color:#424950;--error-color:#ff9b9b;--text-primary-color:#10313e}
+    *{box-sizing:border-box}body{margin:0;background:var(--secondary-background-color);color:var(--primary-text-color);font:14px/1.5 system-ui,sans-serif}
+    .shell{max-width:1140px;margin:auto;padding:28px 18px}h1{font-size:24px;font-weight:600;margin:0}p{color:var(--secondary-text-color)}
+    .bar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:20px 0}
+    select,input,button{font:inherit;color:inherit}select,button{padding:9px;border:1px solid var(--divider-color);border-radius:8px;background:var(--card-background-color)}button{cursor:pointer}
+    .columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start}
+    .editor-panel{padding:20px;background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:16px}
+    h2{font-size:15px;font-weight:600;margin:0 0 15px}.preview{min-width:0}.preview>div{max-width:510px;margin:auto}
+    #card>*{display:block;background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:18px;overflow:hidden}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:12px;padding:14px;font-size:12px}
+    .simple-field{display:grid;gap:6px;margin:12px 0}.simple-field input{padding:9px;max-width:100%;background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:8px}
+    @media(max-width:760px){.columns{grid-template-columns:1fr}.preview{order:-1}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <h1>Moje karty HA</h1>
+    <p>Podgląd lokalny. Encje i wywołania HA są symulowane. Dla karty Powiedz w domu mikrofon działa po kliknięciu „Dyktuj”, jeśli obsługuje go przeglądarka. Przełącznik „Salon niedostępny” dotyczy tylko jej głośnika.</p>
+    <div class="bar">
+      <label>Karta <select id="card-picker"></select></label>
+      <label><input type="checkbox" id="dark"> Ciemny motyw</label>
+      <label><input type="checkbox" id="unavailable"> Salon niedostępny</label>
+      <label><input type="checkbox" id="fail"> Symuluj błąd skryptu</label>
+    </div>
+    <div class="columns">
+      <section class="editor-panel"><h2>Konfiguracja karty</h2><div id="editor"></div></section>
+      <section class="preview"><div><h2>Podgląd</h2><div id="card"></div><h2 style="margin-top:24px">Ostatnie wywołanie</h2><pre id="calls" aria-live="polite">Brak wywołania.</pre></div></section>
+    </div>
+    <details style="margin-top:24px"><summary>Konfiguracja JSON</summary><pre id="config"></pre></details>
+  </main>
+  <script>
+    // Preview-only stand-ins for HA elements. The production bundle uses HA's elements.
+    customElements.define('ha-card', class extends HTMLElement {});
+    customElements.define('ha-icon', class extends HTMLElement {
+      static get observedAttributes(){return ['icon'];}
+      connectedCallback(){this.render();} attributeChangedCallback(){this.render();}
+      render(){
+        const icons={'mdi:bullhorn-outline':'◖','mdi:sofa':'▣','mdi:pot-steam':'♨','mdi:speaker':'▣','mdi:play':'▶','mdi:microphone':'●','mdi:stop':'■','mdi:weather-night':'☾','mdi:door-open':'↗','mdi:account-group':'♟','mdi:silverware-fork-knife':'♜','mdi:power-plug':'⌁','mdi:ceiling-light':'✺','mdi:floor-lamp':'⌂','mdi:lightbulb-outline':'○','mdi:lightbulb':'●'};
+        this.textContent=icons[this.getAttribute('icon')]||'◇';
+        this.style.display='inline-flex';this.style.alignItems='center';this.style.justifyContent='center';this.style.width='var(--mdc-icon-size,24px)';
+      }
+    });
+  </script>
+  <script src="/dist/ha-custom-cards.js"></script>
+  <script>
+    const $=id=>document.getElementById(id);
+    let card,editor,config;
+    const hass={connected:true,states:{
+      'media_player.salon':{state:'idle',attributes:{friendly_name:'Salon'}},
+      'media_player.kuchnia':{state:'idle',attributes:{friendly_name:'Kuchnia'}},
+      'script.powiedz_w_domu':{state:'off',attributes:{friendly_name:'Powiedz w domu'}},
+      'climate.salon':{state:'heat',attributes:{friendly_name:'Termostat salonu',temperature:21.5,current_temperature:20.8,min_temp:5,max_temp:30,target_temp_step:0.5,temperature_unit:'°C',hvac_modes:['off','heat','auto'],hvac_action:'heating'}},
+      'sensor.salon_temperatura':{state:'21.4',attributes:{friendly_name:'Temperatura salonu',unit_of_measurement:'°C',device_class:'temperature'}},
+      'sensor.salon_wilgotnosc':{state:'48',attributes:{friendly_name:'Wilgotność salonu',unit_of_measurement:'%',device_class:'humidity'}},
+      'switch.gniazdko_salon':{state:'on',attributes:{friendly_name:'Gniazdko salonu'}},
+      'sensor.gniazdko_salon_moc':{state:'86.2',attributes:{friendly_name:'Moc gniazdka',unit_of_measurement:'W',device_class:'power'}},
+      'sensor.gniazdko_salon_energia':{state:'4.2',attributes:{friendly_name:'Energia gniazdka',unit_of_measurement:'kWh',device_class:'energy'}},
+      'light.salon_glowna':{state:'on',attributes:{friendly_name:'Lampa główna'}},
+      'light.salon_kinkiet':{state:'off',attributes:{friendly_name:'Kinkiet'}},
+      'light.salon_tasma':{state:'off',attributes:{friendly_name:'Taśma LED'}}
+    },async callService(domain,service,data){
+      $('calls').textContent=JSON.stringify({domain,service,data},null,2);
+      await new Promise(resolve=>setTimeout(resolve,200));
+      if($('fail').checked)throw new Error(domain==='script'?'Przykładowy błąd TTS.':'Przykładowy błąd usługi.');
+      const entity=data&&data.entity_id&&hass.states[data.entity_id];
+      if(entity&&domain==='climate'&&service==='set_temperature')entity.attributes={...entity.attributes,temperature:data.temperature};
+      if(entity&&domain==='climate'&&service==='set_hvac_mode'){
+        entity.state=data.hvac_mode;
+        entity.attributes={...entity.attributes,hvac_action:data.hvac_mode==='heat'?'heating':data.hvac_mode==='cool'?'cooling':'off'};
+      }
+      if(entity&&domain==='light'&&service==='toggle')entity.state=entity.state==='on'?'off':'on';
+      if(card)card.hass={...hass};
+    }};
+    function update(){
+      try{card.setConfig(config);card.hass=hass;}catch(error){$('calls').textContent='Błąd konfiguracji: '+error.message;}
+      $('config').textContent=JSON.stringify(config,null,2);
+    }
+    function show(type){
+      const Klass=customElements.get(type);
+      config={type:'custom:'+type,...Klass.getStubConfig(hass)};
+      if(type==='powiedz-w-domu-card'){
+        config.script='script.powiedz_w_domu';config.speakers[0].entity='media_player.salon';config.speakers[1].entity='media_player.kuchnia';
+      }
+      if(type==='ha-pomieszczenie-card'){
+        config.name='Salon';
+        config.climate='climate.salon';
+        config.thermometer='sensor.salon_temperatura';
+        config.plug='switch.gniazdko_salon';
+        config.power='sensor.gniazdko_salon_moc';
+        config.lights[0].entity='light.salon_glowna';
+        config.lights[0].name='Główne';
+        config.lights[1].entity='light.salon_kinkiet';
+        config.lights[1].name='Kinkiet';
+      }
+      card=document.createElement(type);$('card').replaceChildren(card);update();
+      if(Klass.getConfigElement){
+        editor=Klass.getConfigElement();editor.setConfig(config);editor.hass=hass;
+        editor.addEventListener('config-changed',event=>{config=event.detail.config;update();editor.setConfig(config);});
+      }else{
+        editor=document.createElement('div');
+        const form=Klass.getConfigForm();
+        for(const field of form.schema){
+          const label=document.createElement('label');label.className='simple-field';
+          const caption=document.createElement('span');caption.textContent=form.computeLabel?.(field)||field.name;
+          const input=document.createElement('input');input.type=field.selector.number?'number':'text';
+          if(field.selector.number){input.min=field.selector.number.min;input.max=field.selector.number.max;}
+          input.value=config[field.name]??'';
+          input.addEventListener('input',()=>{config[field.name]=input.type==='number'?Number(input.value):input.value;update();});
+          label.append(caption,input);editor.append(label);
+        }
+      }
+      $('editor').replaceChildren(editor);
+    }
+    for(const metadata of window.customCards){const option=document.createElement('option');option.value=metadata.type;option.textContent=metadata.name;$('card-picker').append(option);}
+    $('card-picker').value='powiedz-w-domu-card';
+    $('card-picker').addEventListener('change',event=>show(event.target.value));
+    $('dark').addEventListener('change',event=>document.documentElement.toggleAttribute('data-dark',event.target.checked));
+    $('unavailable').addEventListener('change',event=>{hass.states['media_player.salon'].state=event.target.checked?'unavailable':'idle';card.hass={...hass};});
+    show('powiedz-w-domu-card');
+  </script>
+</body>
+</html>

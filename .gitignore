@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+coverage/
+.tmp/
+*.log
+# dist/ jest celowo wersjonowany: HACS może instalować z głównej gałęzi.

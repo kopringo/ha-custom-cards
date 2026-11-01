@@ -1,0 +1,13 @@
+type: custom:ha-pomieszczenie-card
+name: Salon
+climate: climate.salon
+thermometer: sensor.salon_temperatura
+plug: switch.gniazdko_salon
+power: sensor.gniazdko_salon_moc
+lights:
+  - entity: light.salon_glowna
+    name: Główne
+    icon: mdi:ceiling-light
+  - entity: light.salon_kinkiet
+    name: Kinkiet
+    icon: mdi:floor-lamp

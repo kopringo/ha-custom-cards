@@ -1,0 +1,15 @@
+{
+  "name": "ha-custom-cards",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Własne karty Home Assistant: starter, Powiedz w domu i karta pomieszczenia.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.cjs tests/*.test.mjs",
+    "check": "node scripts/build.mjs --check && npm test",
+    "new:card": "node scripts/new-card.mjs",
+    "dev": "node scripts/dev.mjs"
+  }
+}

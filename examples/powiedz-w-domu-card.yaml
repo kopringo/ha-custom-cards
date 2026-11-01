@@ -1,0 +1,24 @@
+type: custom:powiedz-w-domu-card
+title: Powiedz w domu
+script: script.powiedz_w_domu
+language: pl-PL
+speakers:
+  - entity: media_player.salon
+    name: Salon
+    icon: mdi:sofa
+  - entity: media_player.kuchnia
+    name: Kuchnia
+    icon: mdi:pot-steam
+presets:
+  - label: Obiad gotowy
+    text: Obiad gotowy. Zapraszam do stołu!
+    icon: mdi:silverware-fork-knife
+  - label: Wychodzimy za 5 min
+    text: Wychodzimy za pięć minut. Przygotujcie się!
+    icon: mdi:door-open
+  - label: Chodźcie do salonu
+    text: Proszę, przyjdźcie na chwilę do salonu.
+    icon: mdi:account-group
+  - label: Dobranoc
+    text: Czas spać. Dobranoc!
+    icon: mdi:weather-night

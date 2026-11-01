@@ -1,4 +1,4 @@
-/** ha-custom-cards v1.0.1 | MIT | Generated: edit src/, not dist/. */
+/** ha-custom-cards v1.0.2 | MIT | Generated: edit src/, not dist/. */
 (() => {
 'use strict';
 // Source: src/shared/kit.js

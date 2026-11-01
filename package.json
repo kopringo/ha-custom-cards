@@ -1,6 +1,6 @@
 {
   "name": "ha-custom-cards",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Własne karty Home Assistant: starter, Powiedz w domu i karta pomieszczenia.",
   "type": "module",

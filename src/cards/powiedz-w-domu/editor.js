@@ -155,7 +155,7 @@
       this._entityField(general, "Skrypt odtwarzania", "script", this._config.script, value => this._commit(c => { c.script = value; }));
       const help = document.createElement("p");
       help.className = "help";
-      help.textContent = "Skrypt dostaje tekst i glosnik. Karta wywołuje go osobno dla każdego zaznaczonego głośnika. Przykład jest w examples/powiedz-w-domu-script.yaml.";
+      help.textContent = "Skrypt dostaje tekst i listę glosniki. Jedno wywołanie czyta wiadomość na wszystkich zaznaczonych głośnikach. Wklej examples/powiedz-w-domu-script.yaml i podmień encję TTS.";
       general.append(help);
       q(".speaker-help").textContent = "Trzy sloty. Pusty nie pojawia się na karcie. Można zaznaczyć kilka głośników naraz. „Zaznaczony domyślnie” włącza głośnik po otwarciu karty.";
       this._config.speakers.forEach((speaker, index) => {

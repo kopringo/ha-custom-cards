@@ -75,10 +75,10 @@ Ta sama nazwa elementu nie może zostać zarejestrowana dwukrotnie w jednej sesj
 4. Zapisz skrypt. Zalecany identyfikator: `script.powiedz_w_domu`.
 5. W wizualnym edytorze karty wybierz ten skrypt i głośniki.
 
-Skrypt musi przyjmować parametry `tekst` i `glosnik`. Przy kilku zaznaczonych
-głośnikach karta wywołuje go po kolei, raz na głośnik. Jeżeli wcześniej
-utworzyłeś wariant czytający helpery `input_text` i `input_select`, zastąp go
-dołączonym skryptem parametrycznym albo utwórz osobny. Ta karta nie używa helperów.
+Skrypt przyjmuje `tekst` oraz `glosniki` — listę encji `media_player`. Jedno
+wywołanie odtwarza wiadomość na wszystkich zaznaczonych głośnikach. Jeżeli
+masz starszą wersję z polem `glosnik`, zastąp ją tym plikiem. Ta karta nie
+używa helperów `input_text` ani `input_select`.
 Nie wklejaj pliku jednego skryptu bezpośrednio na najwyższym poziomie `scripts.yaml`;
 w tym pliku potrzebny jest klucz `powiedz_w_domu:` i wcięcie całej zawartości pod nim.
 

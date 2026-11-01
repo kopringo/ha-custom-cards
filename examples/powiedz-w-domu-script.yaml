@@ -1,9 +1,10 @@
 # Wklej w edytorze YAML NOWEGO skryptu w interfejsie HA.
 # Ustaw identyfikator zapisanej encji na script.powiedz_w_domu
 # lub zmień pole script w konfiguracji karty na rzeczywisty identyfikator.
-# Karta wywołuje ten skrypt osobno dla każdego zaznaczonego głośnika.
+# Karta wysyła jedno wywołanie: tekst oraz glosniki (lista media_player).
+# Podmień tts.twoj_silnik na własną encję TTS z polskim głosem.
 alias: Powiedz w domu
-description: Odczytuje przekazany tekst na wybranym głośniku.
+description: Odczytuje przekazany tekst na jednym lub wielu głośnikach.
 icon: mdi:bullhorn-outline
 mode: queued
 max: 5
@@ -14,35 +15,55 @@ fields:
     selector:
       text:
         multiline: true
-  glosnik:
-    name: Głośnik
+  glosniki:
+    name: Głośniki
+    description: Jeden głośnik albo kilka encji media_player.
     required: true
     selector:
       entity:
         domain: media_player
+        multiple: true
 sequence:
+  - variables:
+      wiadomosc: "{{ tekst if tekst is defined else '' }}"
+      # Wynik szablonu jest napisem. Przypisanie wewnątrz if nie wychodzi na zewnątrz,
+      # dlatego lista głośników jest składana od razu do jednego tekstu.
+      cele: >-
+        {% if glosniki is not defined or glosniki is none %}
+        {% elif glosniki is string %}
+          {{ glosniki | replace('[','') | replace(']','') | replace('(','') | replace(')','') | replace("'",'') | replace('"','') }}
+        {% elif glosniki is iterable and glosniki is not mapping %}
+          {{ glosniki | map('string') | map('trim') | reject('eq','') | unique | join(', ') }}
+        {% endif %}
   - if:
       - condition: template
         value_template: >-
-          {{ tekst is not defined or tekst is not string
-             or (tekst | trim | length) == 0 or (tekst | length) > 1000 }}
+          {{ wiadomosc is not string or (wiadomosc | trim | length) == 0
+             or (wiadomosc | length) > 1000 }}
     then:
       - stop: Podaj niepusty tekst o długości do 1000 znaków.
         error: true
   - if:
       - condition: template
         value_template: >-
-          {{ glosnik is not defined or glosnik is not string
-             or glosnik not in (states.media_player | map(attribute='entity_id') | list)
-             or states(glosnik) in ['unavailable', 'unknown'] }}
+          {% set lista = cele.split(',') | map('trim') | reject('eq','') | list %}
+          {% set media = states.media_player | map(attribute='entity_id') | list %}
+          {% set ns = namespace(zle=(lista | length) == 0) %}
+          {% for id in lista %}
+            {% if id not in media or states(id) in ['unavailable', 'unknown'] %}
+              {% set ns.zle = true %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.zle }}
     then:
-      - stop: Wybrany głośnik nie istnieje lub jest niedostępny.
+      - stop: >-
+          Wybierz co najmniej jeden dostępny głośnik media_player.
+          Otrzymano: {{ glosniki }}. Po odczycie: {{ cele }}.
         error: true
   - action: tts.speak
     target:
-      # ZMIEŃ na rzeczywistą encję TTS z ustawionym polskim głosem.
       entity_id: tts.twoj_silnik
     data:
-      media_player_entity_id: "{{ glosnik }}"
-      message: "{{ tekst | trim }}"
+      media_player_entity_id: "{{ cele }}"
+      message: "{{ wiadomosc | trim }}"
       cache: true

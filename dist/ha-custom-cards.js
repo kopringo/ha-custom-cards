@@ -1175,8 +1175,8 @@ const HaCardKit = Object.freeze({
         .check::after { content: ""; width: 8px; height: 5px; border-left: 2px solid transparent; border-bottom: 2px solid transparent; transform: rotate(-45deg) translateY(-1px); }
         .speaker[aria-pressed=true] .check { border-color: var(--primary-color); background: var(--primary-color); }
         .speaker[aria-pressed=true] .check::after { border-color: var(--text-primary-color, #fff); }
-        .presets { display: flex; flex-direction: column; gap: 8px; }
-        .preset { display: flex; align-items: center; width: 100%; min-height: 44px; text-align: left;
+        .presets { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .preset { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; min-height: 44px; text-align: left;
           border: 1px solid var(--divider-color); border-radius: 12px; background: var(--secondary-background-color); padding: 10px 14px; font-size: 14px; }
         .preset span { overflow-wrap: anywhere; min-width: 0; }
         .preset[aria-pressed=true] { border-color: var(--primary-color); background: var(--card-background-color); color: var(--primary-color); }
@@ -1431,24 +1431,21 @@ const HaCardKit = Object.freeze({
       const revision = this._revision;
       this._sending = true;
       this._setNotice("Wysyłanie wiadomości…");
-      const sent = [];
+      const names = targets.map(speaker => this._name(speaker));
       try {
-        for (const speaker of targets) {
-          if (revision !== this._revision) return;
-          await this._hass.callService("script", this._config.script.slice(7), {
-            tekst: text, glosnik: speaker.entity,
-          });
-          sent.push(this._name(speaker));
-        }
+        if (revision !== this._revision) return;
+        await this._hass.callService("script", this._config.script.slice(7), {
+          tekst: text,
+          glosniki: targets.map(speaker => speaker.entity),
+        });
         if (revision === this._revision) {
-          const label = sent.length === 1 ? "głośnika" : "głośników";
-          this._setNotice(`Wysłano do ${label}: ${sent.join(", ")}.`);
+          const label = names.length === 1 ? "głośnika" : "głośników";
+          this._setNotice(`Wysłano do ${label}: ${names.join(", ")}.`);
         }
       } catch (error) {
         if (revision === this._revision) {
           const detail = typeof error?.message === "string" ? error.message : "Sprawdź połączenie i ślad wykonania skryptu.";
-          const prefix = sent.length ? `Wysłano do: ${sent.join(", ")}. ` : "";
-          this._setNotice(`${prefix}Nie udało się wysłać. ${detail}`, true);
+          this._setNotice(`Nie udało się wysłać. ${detail}`, true);
         }
       } finally {
         this._sending = false;
@@ -1721,7 +1718,7 @@ const HaCardKit = Object.freeze({
       this._entityField(general, "Skrypt odtwarzania", "script", this._config.script, value => this._commit(c => { c.script = value; }));
       const help = document.createElement("p");
       help.className = "help";
-      help.textContent = "Skrypt dostaje tekst i glosnik. Karta wywołuje go osobno dla każdego zaznaczonego głośnika. Przykład jest w examples/powiedz-w-domu-script.yaml.";
+      help.textContent = "Skrypt dostaje tekst i listę glosniki. Jedno wywołanie czyta wiadomość na wszystkich zaznaczonych głośnikach. Wklej examples/powiedz-w-domu-script.yaml i podmień encję TTS.";
       general.append(help);
       q(".speaker-help").textContent = "Trzy sloty. Pusty nie pojawia się na karcie. Można zaznaczyć kilka głośników naraz. „Zaznaczony domyślnie” włącza głośnik po otwarciu karty.";
       this._config.speakers.forEach((speaker, index) => {

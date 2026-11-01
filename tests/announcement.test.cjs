@@ -85,7 +85,7 @@ test('sends exact script fields for selected speaker and retains text', async ()
   card._selected = new Set(['media_player.kuchnia']);
   await card._send();
   assert.equal(JSON.stringify(calls), JSON.stringify([
-    ['script', 'powiedz_w_domu', { tekst: 'Obiad gotowy!', glosnik: 'media_player.kuchnia' }],
+    ['script', 'powiedz_w_domu', { tekst: 'Obiad gotowy!', glosniki: ['media_player.kuchnia'] }],
   ]));
   assert.equal(card._text, '  Obiad gotowy!  ');
   assert.match(card._ui.status.textContent, /Wysłano.*Kuchnia/);
@@ -220,7 +220,7 @@ test('empty preset slot stays hidden and a filled one can be spoken', async () =
   card.setConfig({ ...config, presets: [{ text: '' }, { text: 'Dobranoc' }] });
   assert.equal(card._ui.presets.length, 1);
   await card._speak(card._ui.presets[0].text);
-  assert.equal(JSON.stringify(calls[0]), JSON.stringify(['script', 'powiedz_w_domu', { tekst: 'Dobranoc', glosnik: 'media_player.salon' }]));
+  assert.equal(JSON.stringify(calls[0]), JSON.stringify(['script', 'powiedz_w_domu', { tekst: 'Dobranoc', glosniki: ['media_player.salon'] }]));
 });
 
 test('default flag selects speakers, an empty slot is hidden, and several receive one message', async () => {
@@ -239,9 +239,8 @@ test('default flag selects speakers, an empty slot is hidden, and several receiv
   assert.equal(card._selected.size, 2);
   text('Cześć');
   await card._send();
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0][2].glosnik, 'media_player.salon');
-  assert.equal(calls[1][2].glosnik, 'media_player.kuchnia');
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.stringify(calls[0][2].glosniki), JSON.stringify(['media_player.salon', 'media_player.kuchnia']));
   assert.match(card._ui.status.textContent, /Salon, Kuchnia/);
 });
 

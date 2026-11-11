@@ -94,7 +94,7 @@ const HaCardKit = Object.freeze({
     light: /^(?:light|switch)\.[a-z0-9_]+$/,
   };
   const LIGHTS = 3;
-  const DEFAULT_ICONS = ["mdi:ceiling-light", "mdi:floor-lamp", "mdi:lightbulb-outline"];
+  const DEFAULT_ICONS = ["mdi:lightbulb", "mdi:lightbulb", "mdi:lightbulb"];
   const ACTION_LABEL = {
     heating: "Grzeje", cooling: "Chłodzi", idle: "Bezczynny", off: "Wyłączony",
     drying: "Osusza", fan: "Nawiew", preheating: "Nagrzewa", defrosting: "Odszrania",
@@ -270,44 +270,50 @@ const HaCardKit = Object.freeze({
         .layout {
           display: grid;
           gap: 16px 18px;
-          grid-template-columns: minmax(0, 1.1fr) minmax(15rem, 1fr);
+          grid-template-columns: minmax(0, 1.15fr) minmax(13.5rem, 1fr);
           grid-template-areas:
             "name light"
-            "climate meter"
-            "climate plug";
-          align-items: stretch;
+            "climate side";
+          align-items: start;
         }
-        .layout.no-light { grid-template-areas: "name name" "climate meter" "climate plug"; }
-        .layout.no-meter { grid-template-areas: "name light" "climate plug" "climate plug"; }
-        .layout.no-plug { grid-template-areas: "name light" "climate meter" "climate meter"; }
-        .layout.no-meter.no-plug { grid-template-areas: "name light" "climate climate"; }
-        .layout.no-climate { grid-template-areas: "name light" "meter meter" "plug plug"; }
-        .layout.no-climate.no-light { grid-template-areas: "name name" "meter meter" "plug plug"; }
-        .name-wrap { grid-area: name; display: flex; align-items: center; gap: 12px; min-width: 0; }
-        .name-icon {
-          display: grid; place-items: center; width: 40px; height: 40px; flex: none;
-          border-radius: 12px; color: #2f7fe4; background: rgba(47, 127, 228, 0.12);
-        }
+        .layout.no-light { grid-template-areas: "name name" "climate side"; }
+        .layout.no-side { grid-template-areas: "name light" "climate climate"; }
+        .layout.no-light.no-side { grid-template-areas: "name name" "climate climate"; }
+        .layout.no-climate { grid-template-areas: "name light" "side side"; }
+        .layout.no-climate.no-light { grid-template-areas: "name name" "side side"; }
+        .name-wrap { grid-area: name; display: flex; align-items: center; min-width: 0; }
         h2 {
           margin: 0; font-size: 28px; font-weight: 700; line-height: 1.15;
           letter-spacing: -0.02em; color: #111827; overflow-wrap: anywhere;
         }
+        .side {
+          grid-area: side; display: flex; flex-direction: column; gap: 0; min-width: 0;
+        }
         .tile {
-          min-width: 0; border-radius: 20px; padding: 14px 16px;
+          min-width: 0; border-radius: 20px; padding: 0 16px;
           background: rgba(255, 255, 255, 0.55);
           box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
         }
         .light {
-          grid-area: light; display: flex; align-items: center; gap: 12px; width: 100%;
-          min-height: 52px; min-width: 0; padding: 6px 2px 6px 6px; border: 0; border-radius: 16px;
+          display: flex; align-items: center; gap: 12px; width: 100%;
+          min-height: 52px; min-width: 0; padding: 8px 10px; border: 0; border-radius: 16px;
           text-align: left; cursor: pointer; color: #111827; background: transparent;
         }
-        .light-icon {
-          display: grid; place-items: center; width: 36px; height: 36px; flex: none;
-          border-radius: 50%; color: #8b93a3; background: transparent;
+        .light.primary {
+          grid-area: light; justify-content: flex-end; padding-left: 4px; padding-right: 2px;
         }
-        .light-copy { flex: 1; min-width: 0; }
-        .light-name { display: block; font-size: 18px; font-weight: 700; color: #111827; overflow-wrap: anywhere; }
+        .light.primary .light-name { margin-left: 0; }
+        .light-icon {
+          display: grid; place-items: center; width: 52px; height: 52px; flex: none;
+          border-radius: 50%; color: #8b93a3; background: rgba(255, 255, 255, 0.7);
+        }
+        .light.primary .light-icon {
+          width: 40px; height: 40px; background: transparent;
+        }
+        .light-name {
+          margin-left: auto; font-size: 17px; font-weight: 700; color: #111827;
+          text-align: right; overflow-wrap: anywhere; min-width: 0;
+        }
         .switch {
           width: 46px; height: 26px; flex: none; border-radius: 999px;
           background: rgba(140, 150, 165, 0.35); position: relative;
@@ -318,22 +324,24 @@ const HaCardKit = Object.freeze({
           transition: transform .15s ease;
         }
         .light[aria-pressed="true"] .light-icon {
-          color: #f0b400; background: rgba(255, 214, 90, 0.28);
+          color: #f0b400; background: rgba(255, 214, 90, 0.32);
           box-shadow: 0 0 18px rgba(255, 196, 64, 0.45);
         }
+        .light.primary[aria-pressed="true"] .light-icon { background: rgba(255, 214, 90, 0.28); }
         .light[aria-pressed="true"] .switch { background: #2f7fe4; }
         .light[aria-pressed="true"] .switch::after { transform: translateX(20px); }
         .climate {
           grid-area: climate; display: flex; align-self: start; min-width: 0; padding: 4px 2px;
           background: transparent; border: 0; border-radius: 0; box-shadow: none;
         }
-        .climate-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
-        .climate-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
-        .tile-label {
-          display: flex; align-items: center; gap: 8px; margin: 0;
-          font-size: 14px; font-weight: 500; color: #9aa3b2;
+        .climate-body { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
+        .reading-row {
+          display: flex; align-items: center; gap: 10px; min-width: 0;
         }
-        .tile-label ha-icon { color: #2f7fe4; }
+        .climate-icon {
+          display: grid; place-items: center; flex: none;
+          color: #2f7fe4; background: transparent;
+        }
         .reading {
           margin: 0; font-size: 56px; font-weight: 700; line-height: 0.95;
           letter-spacing: -0.04em; color: #0f172a; font-variant-numeric: tabular-nums;
@@ -342,65 +350,62 @@ const HaCardKit = Object.freeze({
         .setpoint { margin: 0; font-size: 15px; font-weight: 500; color: #9aa3b2; }
         .setpoint strong { color: #111827; font-weight: 700; }
         .controls {
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          gap: 10px; padding: 2px 0; flex: 0 0 auto;
+          display: flex; flex-direction: row; align-items: center; justify-content: flex-start;
+          gap: 10px; padding: 0; flex: 0 0 auto;
         }
         .step {
           width: 40px; height: 40px; border-radius: 50%; font-size: 22px; line-height: 1; cursor: pointer;
           color: #111827; background: rgba(255,255,255,0.9); border: 1px solid rgba(210, 218, 228, 0.85);
         }
         .heat-badge {
-          display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+          display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
           color: #9aa3b2; background: rgba(255,255,255,0.55);
         }
-        .radiator-icon { display: block; width: 30px; height: 30px; }
+        .radiator-icon { display: block; width: 26px; height: 26px; }
         .radiator-icon svg { display: block; width: 100%; height: 100%; }
         .climate.heating .heat-badge {
           color: #f0841a; background: rgba(255, 168, 64, 0.28);
           box-shadow: 0 0 28px rgba(255, 140, 40, 0.5);
         }
-        .meter, .plug {
-          display: grid;
-          grid-template-columns: auto minmax(0, 1fr);
-          grid-template-areas: "icon copy" "icon value";
-          align-items: center; column-gap: 12px; row-gap: 2px;
+        .meter, .plug, .light.tile {
+          display: flex; align-items: center; gap: 14px; min-height: 52px;
         }
-        .meter { grid-area: meter; }
-        .plug { grid-area: plug; }
-        .meter-icon, .plug-icon { grid-area: icon; }
-        .meter-copy, .plug-copy { grid-area: copy; min-width: 0; }
+        .light.tile { padding: 0 16px; }
+        .light.tile .light-name { margin-left: 0; text-align: left; flex: 1; }
         .meter-value, .plug-power {
-          grid-area: value; margin: 0; font-size: 28px; font-weight: 700; color: #0f172a;
+          margin: 0; font-size: 30px; font-weight: 700; color: #0f172a;
           font-variant-numeric: tabular-nums; white-space: nowrap;
         }
-        .meter-value .unit, .plug-power .unit { font-size: 15px; font-weight: 700; }
-        .plug-icon, .meter-icon {
-          display: grid; place-items: center; width: 36px; height: 36px;
-          border-radius: 50%; color: #2f7fe4; background: rgba(255, 255, 255, 0.85);
+        .meter-value .unit, .plug-power .unit { font-size: 16px; font-weight: 700; }
+        .plug-icon, .meter-icon, .climate-icon, .light-icon {
+          display: grid; place-items: center;
         }
-        .plug-name { margin: 0; font-size: 15px; font-weight: 600; color: #6b7280; }
-        .plug-sub { margin: 2px 0 0; font-size: 12px; font-weight: 500; color: #9aa3b2; }
+        .plug-icon, .meter-icon, .light.tile .light-icon {
+          width: 52px; height: 52px; flex: none;
+          border-radius: 50%; color: #2f7fe4; background: rgba(255, 255, 255, 0.9);
+        }
         .empty, .status { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; color: #9aa3b2; }
         .status.error { color: var(--error-color); }
         button:disabled { cursor: default; opacity: 0.45; }
         button:focus-visible { outline: 2px solid #2f7fe4; outline-offset: 2px; }
         [hidden] { display: none !important; }
-        ha-icon { --mdc-icon-size: 20px; }
-        .tile-label ha-icon { --mdc-icon-size: 18px; }
-        .light-icon ha-icon, .plug-icon ha-icon, .meter-icon ha-icon, .name-icon ha-icon { --mdc-icon-size: 20px; }
+        ha-icon { --mdc-icon-size: 22px; }
+        .climate-icon ha-icon { --mdc-icon-size: 48px; }
+        .light.primary .light-icon ha-icon { --mdc-icon-size: 26px; }
+        .meter-icon ha-icon, .plug-icon ha-icon, .light.tile .light-icon ha-icon { --mdc-icon-size: 30px; }
         @container (max-width: 399px) {
-          .layout, .layout.no-light, .layout.no-meter, .layout.no-plug,
-          .layout.no-meter.no-plug, .layout.no-climate, .layout.no-climate.no-light {
+          .layout, .layout.no-light, .layout.no-side, .layout.no-climate,
+          .layout.no-light.no-side, .layout.no-climate.no-light {
             grid-template-columns: 1fr;
             grid-template-areas:
               "name"
               "light"
               "climate"
-              "meter"
-              "plug";
+              "side";
           }
           h2 { font-size: 26px; }
           .reading { font-size: 48px; }
+          .climate-icon ha-icon { --mdc-icon-size: 40px; }
           .meter-value, .plug-power { font-size: 26px; }
         }
       `;
@@ -411,53 +416,50 @@ const HaCardKit = Object.freeze({
 
       const nameWrap = document.createElement("div");
       nameWrap.className = "name-wrap";
-      const nameIcon = document.createElement("div");
-      nameIcon.className = "name-icon";
-      nameIcon.append(this._icon("mdi:home"));
       const name = document.createElement("h2");
-      nameWrap.append(nameIcon, name);
+      nameWrap.append(name);
 
+      const configuredLights = this._config.lights.filter(item => item.entity);
       const lightButtons = [];
-      const firstLight = this._config.lights.find(item => item.entity) || null;
-      let lightButton = null;
-      if (firstLight) {
-        lightButton = document.createElement("button");
-        lightButton.type = "button";
-        lightButton.className = "light";
+      const makeLightButton = (light, primary) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = primary ? "light primary" : "light tile";
         const iconWrap = document.createElement("div");
         iconWrap.className = "light-icon";
-        const icon = this._icon(firstLight.icon || "mdi:lightbulb");
+        const icon = this._icon("mdi:lightbulb");
         iconWrap.append(icon);
-        const copy = document.createElement("div");
-        copy.className = "light-copy";
         const label = document.createElement("span");
         label.className = "light-name";
-        copy.append(label);
         const toggle = document.createElement("span");
         toggle.className = "switch";
         toggle.setAttribute("aria-hidden", "true");
-        lightButton.append(iconWrap, copy, toggle);
-        lightButton.addEventListener("click", () => this._toggleLight(firstLight.entity));
-        lightButtons.push({ button: lightButton, icon, label, entity: firstLight.entity });
-      }
+        if (primary) button.append(label, iconWrap, toggle);
+        else button.append(iconWrap, label, toggle);
+        button.addEventListener("click", () => this._toggleLight(light.entity));
+        lightButtons.push({ button, icon, label, entity: light.entity, primary });
+        return button;
+      };
+      const primaryLight = configuredLights[0] || null;
+      const sideLights = configuredLights.slice(1);
+      const lightButton = primaryLight ? makeLightButton(primaryLight, true) : null;
 
       const climate = document.createElement("section");
       climate.className = "climate";
       const climateBody = document.createElement("div");
       climateBody.className = "climate-body";
-      const climateCopy = document.createElement("div");
-      climateCopy.className = "climate-copy";
-      const climateLabel = document.createElement("p");
-      climateLabel.className = "tile-label";
-      const climateLabelText = document.createElement("span");
-      climateLabelText.textContent = "Termostat";
-      climateLabel.append(this._icon("mdi:thermometer"), climateLabelText);
+      const readingRow = document.createElement("div");
+      readingRow.className = "reading-row";
+      const climateIcon = document.createElement("div");
+      climateIcon.className = "climate-icon";
+      climateIcon.append(this._icon("mdi:thermostat"));
       const measuredReading = document.createElement("p");
       measuredReading.className = "reading";
       const climateValue = document.createElement("span");
       const climateUnit = document.createElement("span");
       climateUnit.className = "unit";
       measuredReading.append(climateValue, climateUnit);
+      readingRow.append(climateIcon, measuredReading);
       const setpoint = document.createElement("p");
       setpoint.className = "setpoint";
       const setpointPrefix = document.createElement("span");
@@ -467,48 +469,42 @@ const HaCardKit = Object.freeze({
       const targetUnit = document.createElement("span");
       setpointStrong.append(targetValue, targetUnit);
       setpoint.append(setpointPrefix, setpointStrong);
-      climateCopy.append(climateLabel, measuredReading, setpoint);
       const controls = document.createElement("div");
       controls.className = "controls";
-      const plus = document.createElement("button");
-      plus.type = "button";
-      plus.className = "step";
-      plus.textContent = "+";
-      plus.setAttribute("aria-label", "Podnieś temperaturę zadaną");
-      plus.addEventListener("click", () => this._nudge(1));
-      const heatBadge = document.createElement("div");
-      heatBadge.className = "heat-badge";
-      heatBadge.append(this._radiatorIcon());
       const minus = document.createElement("button");
       minus.type = "button";
       minus.className = "step";
       minus.textContent = "−";
       minus.setAttribute("aria-label", "Obniż temperaturę zadaną");
       minus.addEventListener("click", () => this._nudge(-1));
-      controls.append(plus, heatBadge, minus);
-      climateBody.append(climateCopy, controls);
+      const heatBadge = document.createElement("div");
+      heatBadge.className = "heat-badge";
+      heatBadge.append(this._radiatorIcon());
+      const plus = document.createElement("button");
+      plus.type = "button";
+      plus.className = "step";
+      plus.textContent = "+";
+      plus.setAttribute("aria-label", "Podnieś temperaturę zadaną");
+      plus.addEventListener("click", () => this._nudge(1));
+      controls.append(minus, heatBadge, plus);
+      climateBody.append(readingRow, setpoint, controls);
       climate.append(climateBody);
+
+      const side = document.createElement("div");
+      side.className = "side";
 
       const meter = document.createElement("section");
       meter.className = "tile meter";
       const meterIcon = document.createElement("div");
       meterIcon.className = "meter-icon";
       meterIcon.append(this._icon("mdi:thermometer"));
-      const meterCopy = document.createElement("div");
-      meterCopy.className = "meter-copy";
-      const meterLabel = document.createElement("p");
-      meterLabel.className = "plug-name";
-      meterLabel.textContent = "Termometr";
-      const meterSub = document.createElement("p");
-      meterSub.className = "plug-sub";
-      meterCopy.append(meterLabel, meterSub);
       const meterValueWrap = document.createElement("p");
       meterValueWrap.className = "meter-value";
       const thermometerValue = document.createElement("span");
       const thermometerUnit = document.createElement("span");
       thermometerUnit.className = "unit";
       meterValueWrap.append(thermometerValue, thermometerUnit);
-      meter.append(meterIcon, meterCopy, meterValueWrap);
+      meter.append(meterIcon, meterValueWrap);
 
       // Read-only on purpose: the plug reports state and power, it is not a switch.
       const plug = document.createElement("div");
@@ -517,17 +513,12 @@ const HaCardKit = Object.freeze({
       const plugIconWrap = document.createElement("div");
       plugIconWrap.className = "plug-icon";
       plugIconWrap.append(this._icon("mdi:power-plug"));
-      const plugCopy = document.createElement("div");
-      plugCopy.className = "plug-copy";
-      const plugName = document.createElement("p");
-      plugName.className = "plug-name";
-      plugName.textContent = "Gniazdko";
-      const plugSub = document.createElement("p");
-      plugSub.className = "plug-sub";
-      plugCopy.append(plugName, plugSub);
       const plugPower = document.createElement("p");
       plugPower.className = "plug-power";
-      plug.append(plugIconWrap, plugCopy, plugPower);
+      plug.append(plugIconWrap, plugPower);
+
+      side.append(meter, plug);
+      for (const light of sideLights) side.append(makeLightButton(light, false));
 
       const empty = document.createElement("p");
       empty.className = "empty";
@@ -538,15 +529,15 @@ const HaCardKit = Object.freeze({
 
       layout.append(nameWrap);
       if (lightButton) layout.append(lightButton);
-      layout.append(climate, meter, plug, empty, status);
+      layout.append(climate, side, empty, status);
       card.append(layout);
       this.shadowRoot.replaceChildren(style, card);
       this._ui = {
-        card, layout, name, empty,
+        card, layout, name, empty, side,
         climate, climateValue, climateUnit, setpoint, targetValue, targetUnit,
         minus, plus, heatBadge,
-        meter, thermometerValue, thermometerUnit, meterSub,
-        plug, plugName, plugSub, plugPower,
+        meter, thermometerValue, thermometerUnit,
+        plug, plugPower,
         lightButton, lightButtons, status,
       };
     }
@@ -558,17 +549,19 @@ const HaCardKit = Object.freeze({
       const showThermometer = !!this._config.thermometer;
       const showThermostat = !!(this._config.climate || this._config.climate_temperature);
       const showPlug = !!(this._config.plug || this._config.power);
-      const showLight = ui.lightButtons.length > 0;
-      const configured = showThermometer || showThermostat || showPlug || showLight;
+      const showPrimaryLight = !!ui.lightButton;
+      const showSideLights = ui.lightButtons.some(item => !item.primary);
+      const showSide = showThermometer || showPlug || showSideLights;
+      const configured = showThermometer || showThermostat || showPlug || ui.lightButtons.length > 0;
       setHidden(ui.empty, configured);
       ui.empty.textContent = "Wybierz encje w konfiguracji karty.";
       setHidden(ui.meter, !showThermometer);
       setHidden(ui.climate, !showThermostat);
-      if (ui.lightButton) setHidden(ui.lightButton, !showLight);
+      setHidden(ui.side, !showSide);
+      if (ui.lightButton) setHidden(ui.lightButton, !showPrimaryLight);
       ui.layout.className = "layout";
-      ui.layout.classList.toggle("no-light", !showLight);
-      ui.layout.classList.toggle("no-meter", !showThermometer);
-      ui.layout.classList.toggle("no-plug", !showPlug);
+      ui.layout.classList.toggle("no-light", !showPrimaryLight);
+      ui.layout.classList.toggle("no-side", !showSide);
       ui.layout.classList.toggle("no-climate", !showThermostat);
 
       if (showThermometer) this._updateThermometer();
@@ -589,7 +582,6 @@ const HaCardKit = Object.freeze({
       const entity = this._config.thermometer;
       const unavailable = this._unavailable(entity);
       this._setReading(ui.thermometerValue, ui.thermometerUnit, unavailable ? null : this._numericState(entity), this._unit(entity));
-      ui.meterSub.textContent = unavailable ? "Niedostępny" : (this._friendly(entity, "") || "W pokoju");
       ui.meter.setAttribute("aria-label", unavailable
         ? "Termometr niedostępny"
         : `Termometr ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
@@ -649,12 +641,10 @@ const HaCardKit = Object.freeze({
       const on = !!entity && !unavailable && this._state(entity)?.state === "on";
       ui.plug.className = "tile plug";
       ui.plug.classList.toggle("on", on);
-      ui.plugName.textContent = "Gniazdko";
-      ui.plugSub.textContent = !entity ? "Pobór mocy" : unavailable ? "Niedostępne" : "Pobór mocy";
       const power = this._powerReading();
       ui.plugPower.textContent = power || "—";
       setHidden(ui.plugPower, !power && !entity);
-      ui.plug.setAttribute("aria-label", ["Gniazdko", ui.plugSub.textContent, power].filter(Boolean).join(", "));
+      ui.plug.setAttribute("aria-label", ["Gniazdko", unavailable ? "niedostępne" : "", power].filter(Boolean).join(", "));
     }
 
     _updateLights() {
@@ -666,7 +656,7 @@ const HaCardKit = Object.freeze({
         const light = this._config.lights.find(entry => entry.entity === item.entity);
         item.button.setAttribute("aria-pressed", String(on));
         item.button.disabled = !this._interactive() || unavailable || this._lightFlight.has(item.entity);
-        item.icon.setAttribute("icon", light?.icon || "mdi:lightbulb");
+        item.icon.setAttribute("icon", "mdi:lightbulb");
         item.label.textContent = this._lightName(light) || "Światło";
       }
       this._ui.card.classList.toggle("lit", anyOn);
@@ -1119,7 +1109,7 @@ const HaCardKit = Object.freeze({
         grid.className = "grid";
         this._textField(grid, "Nazwa na karcie", light.name, value => this._commit(config => { config.lights[index].name = value; }), { limit: 60 });
         this._textField(grid, "Ikona", light.icon, value => this._commit(config => { config.lights[index].icon = value; }), {
-          limit: 80, placeholder: "mdi:ceiling-light",
+          limit: 80, placeholder: "mdi:lightbulb",
         });
         fieldset.append(grid);
         q(".lights").append(fieldset);

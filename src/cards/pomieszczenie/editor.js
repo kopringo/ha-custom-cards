@@ -156,7 +156,7 @@
         grid.className = "grid";
         this._textField(grid, "Nazwa na karcie", light.name, value => this._commit(config => { config.lights[index].name = value; }), { limit: 60 });
         this._textField(grid, "Ikona", light.icon, value => this._commit(config => { config.lights[index].icon = value; }), {
-          limit: 80, placeholder: "mdi:ceiling-light",
+          limit: 80, placeholder: "mdi:lightbulb",
         });
         fieldset.append(grid);
         q(".lights").append(fieldset);

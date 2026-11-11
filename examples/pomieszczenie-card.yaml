@@ -8,8 +8,8 @@ power: sensor.gniazdko_salon_moc
 lights:
   - entity: light.salon_glowna
     name: Główne
-    icon: mdi:ceiling-light
+    icon: mdi:lightbulb
   - entity: light.salon_kinkiet
     name: Kinkiet
-    icon: mdi:floor-lamp
+    icon: mdi:lightbulb
   # Może być też switch, np. switch.lampa_salon

@@ -43,9 +43,18 @@
       static get observedAttributes(){return ['icon'];}
       connectedCallback(){this.render();} attributeChangedCallback(){this.render();}
       render(){
-        const icons={'mdi:bullhorn-outline':'◖','mdi:sofa':'▣','mdi:pot-steam':'♨','mdi:speaker':'▣','mdi:play':'▶','mdi:microphone':'●','mdi:stop':'■','mdi:weather-night':'☾','mdi:door-open':'↗','mdi:account-group':'♟','mdi:silverware-fork-knife':'♜','mdi:power-plug':'⌁','mdi:ceiling-light':'✺','mdi:floor-lamp':'⌂','mdi:lightbulb-outline':'○','mdi:lightbulb':'●','mdi:home':'⌂','mdi:thermometer':'°','mdi:radiator':'♨'};
-        this.textContent=icons[this.getAttribute('icon')]||'◇';
-        this.style.display='inline-flex';this.style.alignItems='center';this.style.justifyContent='center';this.style.width='var(--mdc-icon-size,24px)';
+        // Preview stub: real HA ships ha-icon. CSS fonts cannot pierce card shadow roots,
+        // so we paint MDI SVGs via mask + currentColor.
+        const name=(this.getAttribute('icon')||'help-circle-outline').replace(/^mdi:/,'');
+        const url=`url("https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/${name}.svg") center / contain no-repeat`;
+        this.replaceChildren();
+        this.style.display='inline-block';
+        this.style.width='var(--mdc-icon-size,24px)';
+        this.style.height='var(--mdc-icon-size,24px)';
+        this.style.backgroundColor='currentColor';
+        this.style.webkitMask=url;
+        this.style.mask=url;
+        this.setAttribute('aria-hidden','true');
       }
     });
   </script>

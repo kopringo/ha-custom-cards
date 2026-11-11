@@ -59,9 +59,9 @@ function setup(override) {
     plug: 'switch.gniazdko_salon',
     power: 'sensor.gniazdko_salon_moc',
     lights: [
-      { entity: 'light.salon_glowna', name: 'Główne', icon: 'mdi:ceiling-light' },
-      { entity: 'light.salon_kinkiet', name: 'Kinkiet', icon: 'mdi:floor-lamp' },
-      { entity: '', name: '', icon: 'mdi:lightbulb-outline' },
+      { entity: 'light.salon_glowna', name: 'Główne', icon: 'mdi:lightbulb' },
+      { entity: 'light.salon_kinkiet', name: 'Kinkiet', icon: 'mdi:lightbulb' },
+      { entity: '', name: '', icon: 'mdi:lightbulb' },
     ],
   };
   card.setConfig(config);
@@ -104,10 +104,10 @@ test('rejects bad domains, too many lights and duplicates without replacing a va
     { ...config, lights: [{ entity: 'sensor.salon_temperatura' }] },
   ]) assert.throws(() => card.setConfig(bad));
   assert.equal(card._config.climate, 'climate.salon');
-  assert.equal(card._ui.lightButtons.length, 1);
+  assert.equal(card._ui.lightButtons.length, 2);
 });
 
-test('shows room name, temperatures, plug power and only selected lights', () => {
+test('shows room name, temperatures, plug power and selected lights', () => {
   const { card } = setup();
   assert.equal(card._ui.name.textContent, 'Salon');
   assert.equal(card._ui.thermometerValue.textContent, '21,4');
@@ -116,12 +116,15 @@ test('shows room name, temperatures, plug power and only selected lights', () =>
   assert.equal(card._ui.targetValue.textContent, '21,5');
   assert.equal(card._ui.climate.classList.contains('heating'), true);
   assert.equal(card._ui.plug.tagName, 'DIV');
-  assert.equal(card._ui.plugSub.textContent, 'Pobór mocy');
   assert.equal(card._ui.plugPower.textContent, '86,2 W');
   assert.equal(card._ui.plug.classList.contains('on'), true);
-  assert.equal(card._ui.lightButtons.length, 1);
+  assert.equal(card._ui.lightButtons.length, 2);
   assert.equal(card._ui.lightButtons[0].label.textContent, 'Główne');
+  assert.equal(card._ui.lightButtons[0].primary, true);
   assert.equal(card._ui.lightButtons[0].button.getAttribute('aria-pressed'), 'true');
+  assert.equal(card._ui.lightButtons[1].label.textContent, 'Kinkiet');
+  assert.equal(card._ui.lightButtons[1].primary, false);
+  assert.equal(card._ui.lightButtons[1].button.getAttribute('aria-pressed'), 'false');
   assert.equal(card._ui.card.classList.contains('lit'), true);
   assert.equal(card._ui.empty.hidden, true);
 });
@@ -154,7 +157,6 @@ test('plug is not a control and reads power from the plug when no sensor is set'
   card.setConfig({ name: 'Salon', plug: 'switch.gniazdko_salon' });
   hass.states['switch.gniazdko_salon'].attributes.current_power_w = 12.5;
   card.hass = hass;
-  assert.equal(card._ui.plugSub.textContent, 'Pobór mocy');
   assert.equal(card._ui.plugPower.textContent, '12,5 W');
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'cards', 'pomieszczenie', 'card.js'), 'utf8'), /callService\(\s*["']switch["']/);
 });
@@ -188,10 +190,13 @@ test('steps the setpoint, clamps the minimum and queues a second tap', async () 
   assert.equal(card._round(0.1 + 0.2), 0.3);
 });
 
-test('shows only the first light and toggles it', async () => {
+test('shows primary light beside name and extra lights in the side column', async () => {
   const { card, hass } = setup();
-  assert.equal(card._ui.lightButtons.length, 1);
+  assert.equal(card._ui.lightButtons.length, 2);
   assert.equal(card._ui.lightButtons[0].entity, 'light.salon_glowna');
+  assert.equal(card._ui.lightButtons[1].entity, 'light.salon_kinkiet');
+  assert.equal(card._ui.lightButtons[0].button.className.includes('primary'), true);
+  assert.equal(card._ui.lightButtons[1].button.className.includes('primary'), false);
   await card._toggleLight('light.salon_glowna');
   assert.equal(JSON.stringify(hass.calls[0]), JSON.stringify(['light', 'toggle', { entity_id: 'light.salon_glowna' }]));
   assert.equal(card._ui.lightButtons[0].button.getAttribute('aria-pressed'), 'false');
@@ -236,7 +241,7 @@ test('preview, disconnect and unavailable climate do not call services', async (
 test('empty slots stay in config but a new card asks for entities', () => {
   const { card } = setup({ lights: [{ entity: 'light.lampa', name: '' }] });
   assert.equal(card._config.lights.length, 3);
-  assert.equal(card._config.lights[0].icon, 'mdi:ceiling-light');
+  assert.equal(card._config.lights[0].icon, 'mdi:lightbulb');
   assert.equal(card._ui.lightButtons.length, 1);
   assert.equal(card._ui.lightButtons[0].label.textContent, 'light.lampa');
   card.setConfig({});

@@ -43,7 +43,7 @@
       static get observedAttributes(){return ['icon'];}
       connectedCallback(){this.render();} attributeChangedCallback(){this.render();}
       render(){
-        const icons={'mdi:bullhorn-outline':'◖','mdi:sofa':'▣','mdi:pot-steam':'♨','mdi:speaker':'▣','mdi:play':'▶','mdi:microphone':'●','mdi:stop':'■','mdi:weather-night':'☾','mdi:door-open':'↗','mdi:account-group':'♟','mdi:silverware-fork-knife':'♜','mdi:power-plug':'⌁','mdi:ceiling-light':'✺','mdi:floor-lamp':'⌂','mdi:lightbulb-outline':'○','mdi:lightbulb':'●'};
+        const icons={'mdi:bullhorn-outline':'◖','mdi:sofa':'▣','mdi:pot-steam':'♨','mdi:speaker':'▣','mdi:play':'▶','mdi:microphone':'●','mdi:stop':'■','mdi:weather-night':'☾','mdi:door-open':'↗','mdi:account-group':'♟','mdi:silverware-fork-knife':'♜','mdi:power-plug':'⌁','mdi:ceiling-light':'✺','mdi:floor-lamp':'⌂','mdi:lightbulb-outline':'○','mdi:lightbulb':'●','mdi:home':'⌂','mdi:thermometer':'°','mdi:radiator':'♨'};
         this.textContent=icons[this.getAttribute('icon')]||'◇';
         this.style.display='inline-flex';this.style.alignItems='center';this.style.justifyContent='center';this.style.width='var(--mdc-icon-size,24px)';
       }

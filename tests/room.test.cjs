@@ -104,7 +104,7 @@ test('rejects bad domains, too many lights and duplicates without replacing a va
     { ...config, lights: [{ entity: 'sensor.salon_temperatura' }] },
   ]) assert.throws(() => card.setConfig(bad));
   assert.equal(card._config.climate, 'climate.salon');
-  assert.equal(card._ui.lightButtons.length, 2);
+  assert.equal(card._ui.lightButtons.length, 1);
 });
 
 test('shows room name, temperatures, plug power and only selected lights', () => {
@@ -112,19 +112,17 @@ test('shows room name, temperatures, plug power and only selected lights', () =>
   assert.equal(card._ui.name.textContent, 'Salon');
   assert.equal(card._ui.thermometerValue.textContent, '21,4');
   assert.equal(card._ui.thermometerUnit.textContent, '°C');
+  assert.equal(card._ui.climateValue.textContent, '20,8');
   assert.equal(card._ui.targetValue.textContent, '21,5');
-  assert.equal(card._ui.thermostatKicker.textContent, 'Zadana');
-  assert.equal(card._ui.measured.hidden, true);
-  assert.equal(card._ui.action.textContent, 'Grzeje');
+  assert.equal(card._ui.climate.classList.contains('heating'), true);
   assert.equal(card._ui.plug.tagName, 'DIV');
-  assert.equal(card._ui.plugState.textContent, 'Włączone');
+  assert.equal(card._ui.plugSub.textContent, 'Pobór mocy');
   assert.equal(card._ui.plugPower.textContent, '86,2 W');
   assert.equal(card._ui.plug.classList.contains('on'), true);
-  assert.equal(card._ui.lightButtons.length, 2);
+  assert.equal(card._ui.lightButtons.length, 1);
   assert.equal(card._ui.lightButtons[0].label.textContent, 'Główne');
   assert.equal(card._ui.lightButtons[0].button.getAttribute('aria-pressed'), 'true');
-  assert.equal(card._ui.lightButtons[1].button.getAttribute('aria-pressed'), 'false');
-  assert.equal(card._ui.modeButtons.map(item => item.mode).join(','), 'off,heat,auto');
+  assert.equal(card._ui.card.classList.contains('lit'), true);
   assert.equal(card._ui.empty.hidden, true);
 });
 
@@ -140,12 +138,9 @@ test('shows the thermostat sensor beside the room thermometer', () => {
   assert.equal(card._ui.thermometerValue.textContent, '21,4');
   assert.equal(card._ui.climateValue.textContent, '20,1');
   assert.equal(card._ui.climateUnit.textContent, '°C');
-  assert.equal(card._ui.climateSub.textContent, 'Pomiar termostatu');
   assert.equal(card._ui.targetValue.textContent, '21,5');
-  assert.equal(card._ui.thermostatKicker.textContent, 'Termostat');
-  assert.equal(card._ui.measured.hidden, false);
   assert.equal(card._ui.setpoint.hidden, false);
-  assert.equal(card._ui.thermostat.classList.contains('with-measure'), true);
+  assert.equal(card._ui.climate.classList.contains('heating'), true);
   hass.states[id].state = '19.6';
   card.hass = hass;
   assert.equal(card._ui.climateValue.textContent, '19,6');
@@ -159,7 +154,7 @@ test('plug is not a control and reads power from the plug when no sensor is set'
   card.setConfig({ name: 'Salon', plug: 'switch.gniazdko_salon' });
   hass.states['switch.gniazdko_salon'].attributes.current_power_w = 12.5;
   card.hass = hass;
-  assert.equal(card._ui.plugState.textContent, 'Włączone');
+  assert.equal(card._ui.plugSub.textContent, 'Pobór mocy');
   assert.equal(card._ui.plugPower.textContent, '12,5 W');
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'cards', 'pomieszczenie', 'card.js'), 'utf8'), /callService\(\s*["']switch["']/);
 });
@@ -193,15 +188,14 @@ test('steps the setpoint, clamps the minimum and queues a second tap', async () 
   assert.equal(card._round(0.1 + 0.2), 0.3);
 });
 
-test('changes climate mode and toggles only a selected light', async () => {
+test('shows only the first light and toggles it', async () => {
   const { card, hass } = setup();
-  await card._setMode('heat');
-  assert.equal(hass.calls.length, 0);
-  await card._setMode('off');
-  assert.equal(JSON.stringify(hass.calls[0]), JSON.stringify(['climate', 'set_hvac_mode', { entity_id: 'climate.salon', hvac_mode: 'off' }]));
+  assert.equal(card._ui.lightButtons.length, 1);
+  assert.equal(card._ui.lightButtons[0].entity, 'light.salon_glowna');
   await card._toggleLight('light.salon_glowna');
-  assert.equal(JSON.stringify(hass.calls[1]), JSON.stringify(['light', 'toggle', { entity_id: 'light.salon_glowna' }]));
+  assert.equal(JSON.stringify(hass.calls[0]), JSON.stringify(['light', 'toggle', { entity_id: 'light.salon_glowna' }]));
   assert.equal(card._ui.lightButtons[0].button.getAttribute('aria-pressed'), 'false');
+  assert.equal(card._ui.card.classList.contains('lit'), false);
   const button = card._ui.lightButtons[0].button;
   hass.states['sensor.salon_temperatura'].state = '19.2';
   card.hass = hass;
@@ -222,8 +216,7 @@ test('preview, disconnect and unavailable climate do not call services', async (
   const { card, hass } = setup();
   card.preview = true;
   await card._nudge(1);
-  await card._setMode('off');
-  await card._toggleLight('light.salon_kinkiet');
+  await card._toggleLight('light.salon_glowna');
   card.preview = false;
   hass.connected = false;
   card.hass = hass;
@@ -236,7 +229,8 @@ test('preview, disconnect and unavailable climate do not call services', async (
   card.hass = hass;
   await card._nudge(1);
   assert.equal(hass.calls.length, 0);
-  assert.equal(card._ui.action.textContent, 'Niedostępny');
+  assert.equal(card._ui.climateValue.textContent, '—');
+  assert.equal(card._ui.plus.disabled, true);
 });
 
 test('empty slots stay in config but a new card asks for entities', () => {

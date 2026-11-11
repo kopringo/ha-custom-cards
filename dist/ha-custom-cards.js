@@ -82,7 +82,7 @@ const HaCardKit = Object.freeze({
 ;
 
 // Source: src/cards/pomieszczenie/card.js
-/** Karta pomieszczenia — termostat, termometr, odczyt gniazdka i do trzech świateł. */
+/** Karta pomieszczenia — układ: nazwa, światło, termostat, termometr, gniazdko. */
 (() => {
   const TAG = "ha-pomieszczenie-card";
   if (customElements.get(TAG)) return;
@@ -95,14 +95,11 @@ const HaCardKit = Object.freeze({
   };
   const LIGHTS = 3;
   const DEFAULT_ICONS = ["mdi:ceiling-light", "mdi:floor-lamp", "mdi:lightbulb-outline"];
-  const HVAC_LABEL = {
-    off: "Wył.", heat: "Grzanie", cool: "Chłód", heat_cool: "Auto",
-    auto: "Auto", dry: "Osuszanie", fan_only: "Wentylator",
-  };
   const ACTION_LABEL = {
     heating: "Grzeje", cooling: "Chłodzi", idle: "Bezczynny", off: "Wyłączony",
     drying: "Osusza", fan: "Nawiew", preheating: "Nagrzewa", defrosting: "Odszrania",
   };
+  const RADIATOR_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" d="M7.2 3.6c.7 1-.7 1.5 0 2.6M12 3.1c.7 1-.7 1.5 0 2.6M16.8 3.6c.7 1-.7 1.5 0 2.6"/><path fill="currentColor" d="M5 9.2h14v1.55H5zm1.15 1.9h2.35v8.05H6.15zm3.2 0h2.35v8.05H9.35zm3.2 0h2.35v8.05H12.55zm3.2 0h2.35v8.05H15.75zM5 19.55h14V21H5z"/></svg>`;
 
   const setHidden = (element, hidden) => {
     element.hidden = hidden;
@@ -138,7 +135,6 @@ const HaCardKit = Object.freeze({
       this._tempFlight = false;
       this._pendingMode = null;
       this._modeFlight = false;
-      this._modeSignature = "";
       this._lightOverride = new Map();
       this._lightFlight = new Set();
       this._timers = {};
@@ -229,199 +225,329 @@ const HaCardKit = Object.freeze({
       };
     }
 
+    _icon(name) {
+      const icon = document.createElement("ha-icon");
+      icon.setAttribute("icon", name);
+      icon.setAttribute("aria-hidden", "true");
+      return icon;
+    }
+
+    _radiatorIcon() {
+      const wrap = document.createElement("span");
+      wrap.className = "radiator-icon";
+      wrap.setAttribute("aria-hidden", "true");
+      wrap.innerHTML = RADIATOR_SVG;
+      return wrap;
+    }
+
     _build() {
       const style = document.createElement("style");
       style.textContent = `
-        :host { display: block; color: var(--primary-text-color); }
+        :host { display: block; color: #1f2430; }
         * { box-sizing: border-box; }
-        ha-card { container-type: inline-size; display: block; padding: 16px; }
-        h2 { margin: 0 0 14px; font-size: 22px; font-weight: 600; line-height: 1.2; letter-spacing: -0.02em; overflow-wrap: anywhere; }
-        .stack { display: flex; flex-direction: column; gap: 10px; }
-        .metrics { display: grid; grid-template-columns: 1fr; gap: 10px; }
-        .tile { min-width: 0; display: flex; flex-direction: column; padding: 14px; border-radius: 16px; background: var(--secondary-background-color); }
-        .thermometer .sub { margin-top: auto; padding-top: 8px; }
-        .kicker { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--secondary-text-color); }
-        .thermo-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .reading { margin: 10px 0 0; font-size: 34px; font-weight: 500; line-height: 1; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
-        .setpoint { display: block; }
-        .setpoint-label { margin: 12px 0 0; }
-        .thermostat.with-measure .setpoint { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
-        .thermostat.with-measure .target-reading { margin-top: 2px; font-size: 22px; }
-        .thermostat.with-measure .stepper { margin-top: 0; }
-        .unit { margin-left: 2px; font-size: 15px; font-weight: 500; letter-spacing: 0; }
-        .sub { margin: 8px 0 0; min-height: 16px; font-size: 12px; color: var(--secondary-text-color); overflow-wrap: anywhere; }
-        .action { margin: 0; font-size: 12px; font-weight: 500; color: var(--secondary-text-color); text-align: right; }
-        .action.heat { color: var(--state-climate-heat-color, var(--primary-color)); }
-        .action.cool { color: var(--state-climate-cool-color, var(--primary-color)); }
-        button { font: inherit; touch-action: manipulation; }
-        .stepper { display: flex; gap: 8px; margin-top: 12px; }
-        .stepper button, .mode, .light {
-          color: var(--primary-text-color);
-          background: var(--card-background-color);
-          border: 1px solid var(--divider-color);
-          cursor: pointer;
+        ha-card {
+          container-type: inline-size; display: block; padding: 20px 22px;
+          overflow: hidden; position: relative;
+          background: var(--card-background-color, #fff);
         }
-        .stepper button { width: 44px; height: 44px; border-radius: 14px; font-size: 22px; line-height: 1; }
-        .modes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-        .mode { min-height: 32px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
-        .mode[aria-pressed="true"], .light[aria-pressed="true"] {
-          background: var(--primary-color);
-          border-color: transparent;
-          color: var(--text-primary-color, #fff);
+        ha-card.lit {
+          background:
+            radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
+            radial-gradient(70% 55% at 70% 18%, rgba(255, 196, 64, 0.18), transparent 60%),
+            var(--card-background-color, #fff);
         }
-        .plug { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border-radius: 16px; background: var(--secondary-background-color); }
-        .plug-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 12px; background: var(--card-background-color); color: var(--secondary-text-color); }
-        .plug.on .plug-icon { color: var(--primary-color); }
-        .plug-copy { min-width: 0; flex: 1; }
-        .plug-name { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-        .plug-state { margin: 2px 0 0; font-size: 12px; color: var(--secondary-text-color); }
-        .plug-state::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--secondary-text-color); transform: translateY(-1px); }
-        .plug.on .plug-state::before { background: var(--primary-color); }
-        .plug-power { margin: 0; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .lights { display: flex; flex-wrap: wrap; gap: 8px; }
-        .light { display: flex; flex: 1 1 140px; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 48px; padding: 8px 12px; border-radius: 14px; background: var(--secondary-background-color); }
-        .light span { overflow-wrap: anywhere; }
-        .empty, .status { margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; color: var(--secondary-text-color); }
+        ha-card.heating-glow {
+          background:
+            radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            var(--card-background-color, #fff);
+        }
+        ha-card.lit.heating-glow {
+          background:
+            radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
+            radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            var(--card-background-color, #fff);
+        }
+        .layout {
+          display: grid;
+          gap: 16px 18px;
+          grid-template-columns: minmax(0, 1.1fr) minmax(15rem, 1fr);
+          grid-template-areas:
+            "name light"
+            "climate meter"
+            "climate plug";
+          align-items: stretch;
+        }
+        .layout.no-light { grid-template-areas: "name name" "climate meter" "climate plug"; }
+        .layout.no-meter { grid-template-areas: "name light" "climate plug" "climate plug"; }
+        .layout.no-plug { grid-template-areas: "name light" "climate meter" "climate meter"; }
+        .layout.no-meter.no-plug { grid-template-areas: "name light" "climate climate"; }
+        .layout.no-climate { grid-template-areas: "name light" "meter meter" "plug plug"; }
+        .layout.no-climate.no-light { grid-template-areas: "name name" "meter meter" "plug plug"; }
+        .name-wrap { grid-area: name; display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .name-icon {
+          display: grid; place-items: center; width: 40px; height: 40px; flex: none;
+          border-radius: 12px; color: #2f7fe4; background: rgba(47, 127, 228, 0.12);
+        }
+        h2 {
+          margin: 0; font-size: 28px; font-weight: 700; line-height: 1.15;
+          letter-spacing: -0.02em; color: #111827; overflow-wrap: anywhere;
+        }
+        .tile {
+          min-width: 0; border-radius: 20px; padding: 14px 16px;
+          background: rgba(255, 255, 255, 0.55);
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+        }
+        .light {
+          grid-area: light; display: flex; align-items: center; gap: 12px; width: 100%;
+          min-height: 52px; min-width: 0; padding: 6px 2px 6px 6px; border: 0; border-radius: 16px;
+          text-align: left; cursor: pointer; color: #111827; background: transparent;
+        }
+        .light-icon {
+          display: grid; place-items: center; width: 36px; height: 36px; flex: none;
+          border-radius: 50%; color: #8b93a3; background: transparent;
+        }
+        .light-copy { flex: 1; min-width: 0; }
+        .light-name { display: block; font-size: 18px; font-weight: 700; color: #111827; overflow-wrap: anywhere; }
+        .switch {
+          width: 46px; height: 26px; flex: none; border-radius: 999px;
+          background: rgba(140, 150, 165, 0.35); position: relative;
+        }
+        .switch::after {
+          content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+          border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.16);
+          transition: transform .15s ease;
+        }
+        .light[aria-pressed="true"] .light-icon {
+          color: #f0b400; background: rgba(255, 214, 90, 0.28);
+          box-shadow: 0 0 18px rgba(255, 196, 64, 0.45);
+        }
+        .light[aria-pressed="true"] .switch { background: #2f7fe4; }
+        .light[aria-pressed="true"] .switch::after { transform: translateX(20px); }
+        .climate {
+          grid-area: climate; display: flex; align-self: start; min-width: 0; padding: 4px 2px;
+          background: transparent; border: 0; border-radius: 0; box-shadow: none;
+        }
+        .climate-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; }
+        .climate-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+        .tile-label {
+          display: flex; align-items: center; gap: 8px; margin: 0;
+          font-size: 14px; font-weight: 500; color: #9aa3b2;
+        }
+        .tile-label ha-icon { color: #2f7fe4; }
+        .reading {
+          margin: 0; font-size: 56px; font-weight: 700; line-height: 0.95;
+          letter-spacing: -0.04em; color: #0f172a; font-variant-numeric: tabular-nums;
+        }
+        .unit { margin-left: 2px; font-size: 24px; font-weight: 700; color: #0f172a; }
+        .setpoint { margin: 0; font-size: 15px; font-weight: 500; color: #9aa3b2; }
+        .setpoint strong { color: #111827; font-weight: 700; }
+        .controls {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 10px; padding: 2px 0; flex: 0 0 auto;
+        }
+        .step {
+          width: 40px; height: 40px; border-radius: 50%; font-size: 22px; line-height: 1; cursor: pointer;
+          color: #111827; background: rgba(255,255,255,0.9); border: 1px solid rgba(210, 218, 228, 0.85);
+        }
+        .heat-badge {
+          display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%;
+          color: #9aa3b2; background: rgba(255,255,255,0.55);
+        }
+        .radiator-icon { display: block; width: 30px; height: 30px; }
+        .radiator-icon svg { display: block; width: 100%; height: 100%; }
+        .climate.heating .heat-badge {
+          color: #f0841a; background: rgba(255, 168, 64, 0.28);
+          box-shadow: 0 0 28px rgba(255, 140, 40, 0.5);
+        }
+        .meter, .plug {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          grid-template-areas: "icon copy" "icon value";
+          align-items: center; column-gap: 12px; row-gap: 2px;
+        }
+        .meter { grid-area: meter; }
+        .plug { grid-area: plug; }
+        .meter-icon, .plug-icon { grid-area: icon; }
+        .meter-copy, .plug-copy { grid-area: copy; min-width: 0; }
+        .meter-value, .plug-power {
+          grid-area: value; margin: 0; font-size: 28px; font-weight: 700; color: #0f172a;
+          font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .meter-value .unit, .plug-power .unit { font-size: 15px; font-weight: 700; }
+        .plug-icon, .meter-icon {
+          display: grid; place-items: center; width: 36px; height: 36px;
+          border-radius: 50%; color: #2f7fe4; background: rgba(255, 255, 255, 0.85);
+        }
+        .plug-name { margin: 0; font-size: 15px; font-weight: 600; color: #6b7280; }
+        .plug-sub { margin: 2px 0 0; font-size: 12px; font-weight: 500; color: #9aa3b2; }
+        .empty, .status { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; color: #9aa3b2; }
         .status.error { color: var(--error-color); }
         button:disabled { cursor: default; opacity: 0.45; }
-        button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }
+        button:focus-visible { outline: 2px solid #2f7fe4; outline-offset: 2px; }
         [hidden] { display: none !important; }
-        ha-icon { --mdc-icon-size: 22px; }
-        .light ha-icon { --mdc-icon-size: 20px; }
-        @container (min-width: 440px) {
-          .metrics:not(.single) { grid-template-columns: 1fr 1fr; }
+        ha-icon { --mdc-icon-size: 20px; }
+        .tile-label ha-icon { --mdc-icon-size: 18px; }
+        .light-icon ha-icon, .plug-icon ha-icon, .meter-icon ha-icon, .name-icon ha-icon { --mdc-icon-size: 20px; }
+        @container (max-width: 399px) {
+          .layout, .layout.no-light, .layout.no-meter, .layout.no-plug,
+          .layout.no-meter.no-plug, .layout.no-climate, .layout.no-climate.no-light {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "name"
+              "light"
+              "climate"
+              "meter"
+              "plug";
+          }
+          h2 { font-size: 26px; }
+          .reading { font-size: 48px; }
+          .meter-value, .plug-power { font-size: 26px; }
         }
       `;
-      const card = document.createElement("ha-card");
-      const name = document.createElement("h2");
-      const stack = document.createElement("div");
-      stack.className = "stack";
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      const metrics = document.createElement("div");
-      metrics.className = "metrics";
-      const thermometer = document.createElement("section");
-      thermometer.className = "tile thermometer";
-      const thermometerKicker = document.createElement("p");
-      thermometerKicker.className = "kicker";
-      thermometerKicker.textContent = "W pokoju";
-      const thermometerReading = document.createElement("p");
-      thermometerReading.className = "reading";
-      const thermometerValue = document.createElement("span");
-      const thermometerUnit = document.createElement("span");
-      thermometerUnit.className = "unit";
-      thermometerReading.append(thermometerValue, thermometerUnit);
-      const thermometerSub = document.createElement("p");
-      thermometerSub.className = "sub";
-      thermometer.append(thermometerKicker, thermometerReading, thermometerSub);
 
-      const thermostat = document.createElement("section");
-      thermostat.className = "tile thermostat";
-      const thermoTop = document.createElement("div");
-      thermoTop.className = "thermo-top";
-      const thermostatKicker = document.createElement("p");
-      thermostatKicker.className = "kicker";
-      thermostatKicker.textContent = "Zadana";
-      const action = document.createElement("p");
-      action.className = "action";
-      thermoTop.append(thermostatKicker, action);
-      const measured = document.createElement("div");
-      measured.className = "measured";
+      const card = document.createElement("ha-card");
+      const layout = document.createElement("div");
+      layout.className = "layout";
+
+      const nameWrap = document.createElement("div");
+      nameWrap.className = "name-wrap";
+      const nameIcon = document.createElement("div");
+      nameIcon.className = "name-icon";
+      nameIcon.append(this._icon("mdi:home"));
+      const name = document.createElement("h2");
+      nameWrap.append(nameIcon, name);
+
+      const lightButtons = [];
+      const firstLight = this._config.lights.find(item => item.entity) || null;
+      let lightButton = null;
+      if (firstLight) {
+        lightButton = document.createElement("button");
+        lightButton.type = "button";
+        lightButton.className = "light";
+        const iconWrap = document.createElement("div");
+        iconWrap.className = "light-icon";
+        const icon = this._icon(firstLight.icon || "mdi:lightbulb");
+        iconWrap.append(icon);
+        const copy = document.createElement("div");
+        copy.className = "light-copy";
+        const label = document.createElement("span");
+        label.className = "light-name";
+        copy.append(label);
+        const toggle = document.createElement("span");
+        toggle.className = "switch";
+        toggle.setAttribute("aria-hidden", "true");
+        lightButton.append(iconWrap, copy, toggle);
+        lightButton.addEventListener("click", () => this._toggleLight(firstLight.entity));
+        lightButtons.push({ button: lightButton, icon, label, entity: firstLight.entity });
+      }
+
+      const climate = document.createElement("section");
+      climate.className = "climate";
+      const climateBody = document.createElement("div");
+      climateBody.className = "climate-body";
+      const climateCopy = document.createElement("div");
+      climateCopy.className = "climate-copy";
+      const climateLabel = document.createElement("p");
+      climateLabel.className = "tile-label";
+      const climateLabelText = document.createElement("span");
+      climateLabelText.textContent = "Termostat";
+      climateLabel.append(this._icon("mdi:thermometer"), climateLabelText);
       const measuredReading = document.createElement("p");
       measuredReading.className = "reading";
       const climateValue = document.createElement("span");
       const climateUnit = document.createElement("span");
       climateUnit.className = "unit";
       measuredReading.append(climateValue, climateUnit);
-      const climateSub = document.createElement("p");
-      climateSub.className = "sub";
-      measured.append(measuredReading, climateSub);
-      const setpoint = document.createElement("div");
+      const setpoint = document.createElement("p");
       setpoint.className = "setpoint";
-      const setpointCopy = document.createElement("div");
-      const setpointLabel = document.createElement("p");
-      setpointLabel.className = "kicker setpoint-label";
-      setpointLabel.textContent = "Zadana";
-      const targetReading = document.createElement("p");
-      targetReading.className = "reading target-reading";
+      const setpointPrefix = document.createElement("span");
+      setpointPrefix.textContent = "Zadana ";
+      const setpointStrong = document.createElement("strong");
       const targetValue = document.createElement("span");
       const targetUnit = document.createElement("span");
-      targetUnit.className = "unit";
-      targetReading.append(targetValue, targetUnit);
-      setpointCopy.append(setpointLabel, targetReading);
-      const stepper = document.createElement("div");
-      stepper.className = "stepper";
-      const minus = document.createElement("button");
-      minus.type = "button";
-      minus.textContent = "−";
-      minus.setAttribute("aria-label", "Obniż temperaturę zadaną");
-      minus.addEventListener("click", () => this._nudge(-1));
+      setpointStrong.append(targetValue, targetUnit);
+      setpoint.append(setpointPrefix, setpointStrong);
+      climateCopy.append(climateLabel, measuredReading, setpoint);
+      const controls = document.createElement("div");
+      controls.className = "controls";
       const plus = document.createElement("button");
       plus.type = "button";
+      plus.className = "step";
       plus.textContent = "+";
       plus.setAttribute("aria-label", "Podnieś temperaturę zadaną");
       plus.addEventListener("click", () => this._nudge(1));
-      stepper.append(minus, plus);
-      setpoint.append(setpointCopy, stepper);
-      const modes = document.createElement("div");
-      modes.className = "modes";
-      modes.setAttribute("role", "group");
-      modes.setAttribute("aria-label", "Tryb termostatu");
-      thermostat.append(thermoTop, measured, setpoint, modes);
-      metrics.append(thermometer, thermostat);
+      const heatBadge = document.createElement("div");
+      heatBadge.className = "heat-badge";
+      heatBadge.append(this._radiatorIcon());
+      const minus = document.createElement("button");
+      minus.type = "button";
+      minus.className = "step";
+      minus.textContent = "−";
+      minus.setAttribute("aria-label", "Obniż temperaturę zadaną");
+      minus.addEventListener("click", () => this._nudge(-1));
+      controls.append(plus, heatBadge, minus);
+      climateBody.append(climateCopy, controls);
+      climate.append(climateBody);
+
+      const meter = document.createElement("section");
+      meter.className = "tile meter";
+      const meterIcon = document.createElement("div");
+      meterIcon.className = "meter-icon";
+      meterIcon.append(this._icon("mdi:thermometer"));
+      const meterCopy = document.createElement("div");
+      meterCopy.className = "meter-copy";
+      const meterLabel = document.createElement("p");
+      meterLabel.className = "plug-name";
+      meterLabel.textContent = "Termometr";
+      const meterSub = document.createElement("p");
+      meterSub.className = "plug-sub";
+      meterCopy.append(meterLabel, meterSub);
+      const meterValueWrap = document.createElement("p");
+      meterValueWrap.className = "meter-value";
+      const thermometerValue = document.createElement("span");
+      const thermometerUnit = document.createElement("span");
+      thermometerUnit.className = "unit";
+      meterValueWrap.append(thermometerValue, thermometerUnit);
+      meter.append(meterIcon, meterCopy, meterValueWrap);
 
       // Read-only on purpose: the plug reports state and power, it is not a switch.
       const plug = document.createElement("div");
-      plug.className = "plug";
+      plug.className = "tile plug";
       plug.setAttribute("role", "group");
       const plugIconWrap = document.createElement("div");
       plugIconWrap.className = "plug-icon";
-      const plugIcon = document.createElement("ha-icon");
-      plugIcon.setAttribute("icon", "mdi:power-plug");
-      plugIcon.setAttribute("aria-hidden", "true");
-      plugIconWrap.append(plugIcon);
+      plugIconWrap.append(this._icon("mdi:power-plug"));
       const plugCopy = document.createElement("div");
       plugCopy.className = "plug-copy";
       const plugName = document.createElement("p");
       plugName.className = "plug-name";
-      const plugState = document.createElement("p");
-      plugState.className = "plug-state";
-      plugCopy.append(plugName, plugState);
+      plugName.textContent = "Gniazdko";
+      const plugSub = document.createElement("p");
+      plugSub.className = "plug-sub";
+      plugCopy.append(plugName, plugSub);
       const plugPower = document.createElement("p");
       plugPower.className = "plug-power";
       plug.append(plugIconWrap, plugCopy, plugPower);
 
-      const lights = document.createElement("div");
-      lights.className = "lights";
-      lights.setAttribute("role", "group");
-      lights.setAttribute("aria-label", "Światła");
-      const lightButtons = [];
-      for (const light of this._config.lights.filter(item => item.entity)) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "light";
-        const icon = document.createElement("ha-icon");
-        icon.setAttribute("aria-hidden", "true");
-        const label = document.createElement("span");
-        button.append(icon, label);
-        button.addEventListener("click", () => this._toggleLight(light.entity));
-        lights.append(button);
-        lightButtons.push({ button, icon, label, entity: light.entity });
-      }
-
+      const empty = document.createElement("p");
+      empty.className = "empty";
       const status = document.createElement("p");
       status.className = "status";
       status.setAttribute("role", "status");
       status.setAttribute("aria-live", "polite");
-      stack.append(empty, metrics, plug, lights, status);
-      card.append(name, stack);
+
+      layout.append(nameWrap);
+      if (lightButton) layout.append(lightButton);
+      layout.append(climate, meter, plug, empty, status);
+      card.append(layout);
       this.shadowRoot.replaceChildren(style, card);
-      this._modeSignature = "";
       this._ui = {
-        name, empty, metrics, thermometer, thermometerValue, thermometerUnit, thermometerSub,
-        thermostat, thermostatKicker, measured, climateValue, climateUnit, climateSub, setpoint, setpointLabel,
-        action, targetValue, targetUnit, minus, plus, modes, modeButtons: [],
-        plug, plugName, plugState, plugPower, lights, lightButtons, status,
+        card, layout, name, empty,
+        climate, climateValue, climateUnit, setpoint, targetValue, targetUnit,
+        minus, plus, heatBadge,
+        meter, thermometerValue, thermometerUnit, meterSub,
+        plug, plugName, plugSub, plugPower,
+        lightButton, lightButtons, status,
       };
     }
 
@@ -432,22 +558,24 @@ const HaCardKit = Object.freeze({
       const showThermometer = !!this._config.thermometer;
       const showThermostat = !!(this._config.climate || this._config.climate_temperature);
       const showPlug = !!(this._config.plug || this._config.power);
-      const showLights = ui.lightButtons.length > 0;
-      const configured = showThermometer || showThermostat || showPlug || showLights;
+      const showLight = ui.lightButtons.length > 0;
+      const configured = showThermometer || showThermostat || showPlug || showLight;
       setHidden(ui.empty, configured);
       ui.empty.textContent = "Wybierz encje w konfiguracji karty.";
-      setHidden(ui.metrics, !showThermometer && !showThermostat);
-      setHidden(ui.thermometer, !showThermometer);
-      setHidden(ui.thermostat, !showThermostat);
-      ui.metrics.className = "metrics";
-      ui.metrics.classList.toggle("single", showThermometer !== showThermostat);
+      setHidden(ui.meter, !showThermometer);
+      setHidden(ui.climate, !showThermostat);
+      if (ui.lightButton) setHidden(ui.lightButton, !showLight);
+      ui.layout.className = "layout";
+      ui.layout.classList.toggle("no-light", !showLight);
+      ui.layout.classList.toggle("no-meter", !showThermometer);
+      ui.layout.classList.toggle("no-plug", !showPlug);
+      ui.layout.classList.toggle("no-climate", !showThermostat);
 
       if (showThermometer) this._updateThermometer();
       if (showThermostat) this._updateThermostat();
-      else setHidden(ui.modes, true);
+      else ui.card.classList.toggle("heating-glow", false);
       this._updatePlug(showPlug);
       this._updateLights();
-      setHidden(ui.lights, !showLights);
 
       const offline = !this.preview && this._hass?.connected === false && configured;
       const status = this._notice || (offline ? "Brak połączenia z Home Assistant." : "");
@@ -461,71 +589,55 @@ const HaCardKit = Object.freeze({
       const entity = this._config.thermometer;
       const unavailable = this._unavailable(entity);
       this._setReading(ui.thermometerValue, ui.thermometerUnit, unavailable ? null : this._numericState(entity), this._unit(entity));
-      const name = this._friendly(entity, "");
-      ui.thermometerSub.textContent = unavailable ? "Niedostępny" : name;
-      ui.thermometer.setAttribute("aria-label", unavailable
-        ? "Temperatura w pokoju niedostępna"
-        : `Temperatura w pokoju ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
+      ui.meterSub.textContent = unavailable ? "Niedostępny" : (this._friendly(entity, "") || "W pokoju");
+      ui.meter.setAttribute("aria-label", unavailable
+        ? "Termometr niedostępny"
+        : `Termometr ${ui.thermometerValue.textContent} ${ui.thermometerUnit.textContent}`.trim());
+    }
+
+    _currentTemperature() {
+      if (this._config.climate_temperature) {
+        if (this._unavailable(this._config.climate_temperature)) return null;
+        return this._numericState(this._config.climate_temperature);
+      }
+      if (!this._config.climate || this._unavailable(this._config.climate)) return null;
+      const value = Number(this._state(this._config.climate)?.attributes?.current_temperature);
+      return Number.isFinite(value) ? value : null;
     }
 
     _updateThermostat() {
       const ui = this._ui;
       const hasClimate = !!this._config.climate;
       const unavailable = hasClimate && this._unavailable(this._config.climate);
-      const showMeasure = !!this._config.climate_temperature;
-      setHidden(ui.measured, !showMeasure);
-      setHidden(ui.setpoint, !hasClimate);
-      setHidden(ui.setpointLabel, !showMeasure);
-      ui.thermostat.className = "tile thermostat";
-      ui.thermostat.classList.toggle("with-measure", showMeasure);
-      ui.thermostatKicker.textContent = showMeasure ? "Termostat" : "Zadana";
-      if (showMeasure) {
-        const sensor = this._config.climate_temperature;
-        const sensorDown = this._unavailable(sensor);
-        this._setReading(ui.climateValue, ui.climateUnit, sensorDown ? null : this._numericState(sensor), this._unit(sensor));
-        ui.climateSub.textContent = sensorDown ? "Niedostępny" : this._friendly(sensor, "");
-      }
+      const current = this._currentTemperature();
+      const unit = this._config.climate_temperature
+        ? this._unit(this._config.climate_temperature)
+        : this._unit(this._config.climate);
+      this._setReading(ui.climateValue, ui.climateUnit, current, unit);
+
       const range = hasClimate ? this._rangeTarget() : null;
       const target = hasClimate ? this._displayedTarget() : null;
+      setHidden(ui.setpoint, !hasClimate);
       if (target != null) this._setReading(ui.targetValue, ui.targetUnit, target, this._unit(this._config.climate));
       else if (range) {
         ui.targetValue.textContent = `${this._formatNumber(range.low, this._digits())}–${this._formatNumber(range.high, this._digits())}`;
         ui.targetUnit.textContent = this._unit(this._config.climate);
       } else this._setReading(ui.targetValue, ui.targetUnit, null, "");
+
       const action = hasClimate ? this._action() : { label: "", kind: "" };
-      ui.action.textContent = !hasClimate ? "" : unavailable ? "Niedostępny" : action.label;
-      ui.action.className = "action";
-      if (hasClimate && !unavailable && action.kind) ui.action.classList.toggle(action.kind, true);
+      const heating = hasClimate && !unavailable && action.kind === "heat";
+      ui.climate.className = "climate";
+      ui.climate.classList.toggle("heating", heating);
+      ui.card.classList.toggle("heating-glow", heating);
+      ui.heatBadge.title = !hasClimate ? "" : unavailable ? "Niedostępny" : action.label;
       const { min, max } = this._bounds();
       ui.minus.disabled = !this._canAdjustTemp() || target == null || target <= min + 0.001;
       ui.plus.disabled = !this._canAdjustTemp() || target == null || target >= max - 0.001;
-      const measuredText = showMeasure ? `Pomiar termostatu ${ui.climateValue.textContent} ${ui.climateUnit.textContent}. ` : "";
-      ui.thermostat.setAttribute("aria-label", `${measuredText}Temperatura zadana ${ui.targetValue.textContent} ${ui.targetUnit.textContent}`.trim());
-      this._syncModes(!hasClimate || unavailable);
-    }
-
-    _syncModes(unavailable) {
-      const modes = unavailable ? [] : this._hvacModes();
-      const signature = modes.join("\0");
-      if (signature !== this._modeSignature) {
-        this._modeSignature = signature;
-        this._ui.modes.replaceChildren();
-        this._ui.modeButtons = modes.map(mode => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "mode";
-          button.addEventListener("click", () => this._setMode(mode));
-          this._ui.modes.append(button);
-          return { button, mode };
-        });
-      }
-      const current = this._currentMode();
-      for (const item of this._ui.modeButtons) {
-        item.button.textContent = HVAC_LABEL[item.mode] || item.mode;
-        item.button.setAttribute("aria-pressed", String(item.mode === current));
-        item.button.disabled = !this._canControlClimate() || this._modeFlight;
-      }
-      setHidden(this._ui.modes, !this._ui.modeButtons.length);
+      ui.climate.setAttribute("aria-label", [
+        current == null ? "Temperatura termostatu niedostępna" : `Temperatura ${ui.climateValue.textContent} ${ui.climateUnit.textContent}`,
+        hasClimate ? `Zadana ${ui.targetValue.textContent} ${ui.targetUnit.textContent}` : "",
+        heating ? "Grzeje" : "",
+      ].filter(Boolean).join(". "));
     }
 
     _updatePlug(show) {
@@ -535,26 +647,29 @@ const HaCardKit = Object.freeze({
       const entity = this._config.plug;
       const unavailable = entity ? this._unavailable(entity) : false;
       const on = !!entity && !unavailable && this._state(entity)?.state === "on";
-      ui.plug.className = "plug";
+      ui.plug.className = "tile plug";
       ui.plug.classList.toggle("on", on);
-      ui.plugName.textContent = this._friendly(entity || this._config.power, "Gniazdko");
-      ui.plugState.textContent = !entity ? "Pobór mocy" : unavailable ? "Niedostępne" : on ? "Włączone" : "Wyłączone";
+      ui.plugName.textContent = "Gniazdko";
+      ui.plugSub.textContent = !entity ? "Pobór mocy" : unavailable ? "Niedostępne" : "Pobór mocy";
       const power = this._powerReading();
-      ui.plugPower.textContent = power || "";
-      setHidden(ui.plugPower, !power);
-      ui.plug.setAttribute("aria-label", [ui.plugName.textContent, ui.plugState.textContent, power].filter(Boolean).join(", "));
+      ui.plugPower.textContent = power || "—";
+      setHidden(ui.plugPower, !power && !entity);
+      ui.plug.setAttribute("aria-label", ["Gniazdko", ui.plugSub.textContent, power].filter(Boolean).join(", "));
     }
 
     _updateLights() {
+      let anyOn = false;
       for (const item of this._ui.lightButtons) {
         const on = this._lightOn(item.entity);
+        anyOn = anyOn || on;
         const unavailable = this._unavailable(item.entity);
         const light = this._config.lights.find(entry => entry.entity === item.entity);
         item.button.setAttribute("aria-pressed", String(on));
         item.button.disabled = !this._interactive() || unavailable || this._lightFlight.has(item.entity);
         item.icon.setAttribute("icon", light?.icon || "mdi:lightbulb");
-        item.label.textContent = this._lightName(light);
+        item.label.textContent = this._lightName(light) || "Światło";
       }
+      this._ui.card.classList.toggle("lit", anyOn);
     }
 
     _reconcile() {
@@ -732,7 +847,7 @@ const HaCardKit = Object.freeze({
         return { label: ACTION_LABEL[action], kind: action === "cooling" ? "cool" : action === "heating" || action === "preheating" ? "heat" : "" };
       }
       const mode = this._currentMode();
-      return { label: HVAC_LABEL[mode] || "", kind: mode === "cool" ? "cool" : mode === "heat" ? "heat" : "" };
+      return { label: mode || "", kind: mode === "cool" ? "cool" : mode === "heat" ? "heat" : "" };
     }
 
     _step() {

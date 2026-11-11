@@ -101,11 +101,11 @@ zaznaczyć kilka głośników naraz. Gotowy komunikat odtwarza się od razu.
 W edytorze karty ustawiasz:
 
 - nazwę pomieszczenia,
-- termostat (`climate`) — temperatura zadana, przyciski −/+ i tryb,
-- temperatura termostatu (`sensor` temperatury z samego urządzenia),
-- termometr w pokoju (`sensor` temperatury z zewnętrznego czujnika),
-- gniazdko (`switch`) i opcjonalnie czujnik mocy — tylko odczyt, bez wyłączania,
-- do trzech świateł (`light` albo `switch`); pusty slot nie jest pokazywany.
+- pierwsze światło (`light` albo `switch`) — obok nazwy; zapalenie daje żółtą poświatę na karcie,
+- termostat (`climate`) — aktualna temperatura, zadana i −/+; pomarańczowa ikona gdy grzeje,
+- temperatura termostatu (`sensor`) — opcjonalny pomiar z urządzenia zamiast `current_temperature`,
+- termometr w pokoju (`sensor` temperatury),
+- gniazdko (`switch`) i opcjonalnie czujnik mocy — tylko odczyt, bez wyłączania.
 
 Przykład: [examples/pomieszczenie-card.yaml](examples/pomieszczenie-card.yaml).
 

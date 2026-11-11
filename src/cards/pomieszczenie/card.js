@@ -31,6 +31,7 @@
     static getStubConfig() {
       return {
         name: "Pomieszczenie",
+        background: "",
         climate: "",
         climate_temperature: "",
         thermometer: "",
@@ -55,6 +56,8 @@
       this._lightFlight = new Set();
       this._timers = {};
       this._tokens = {};
+      this._backgroundKey = null;
+      this._backgroundUrl = "";
     }
 
     setConfig(config) {
@@ -69,6 +72,8 @@
       this._modeFlight = false;
       this._lightOverride = new Map();
       this._lightFlight = new Set();
+      this._backgroundKey = null;
+      this._backgroundUrl = "";
       for (const timer of Object.values(this._timers)) clearTimeout(timer);
       this._timers = {};
       this._tokens = {};
@@ -130,8 +135,13 @@
       });
       const chosen = lights.map(light => light.entity).filter(Boolean);
       if (new Set(chosen).size !== chosen.length) throw new Error("Każde światło musi być inną encją.");
+      const backgroundValue = config.background;
+      const background = typeof backgroundValue === "string"
+        ? backgroundValue.trim().slice(0, 500)
+        : String(backgroundValue?.media_content_id || "").trim().slice(0, 500);
       return {
         name: String(config.name ?? "").trim().slice(0, 80) || "Pomieszczenie",
+        background,
         climate: entity(config.climate, ID.climate, "Termostat musi być encją climate."),
         climate_temperature: entity(config.climate_temperature, ID.sensor, "Temperatura termostatu musi być encją sensor."),
         thermometer: entity(config.thermometer, ID.sensor, "Termometr musi być encją sensor."),
@@ -166,10 +176,24 @@
           overflow: hidden; position: relative;
           background: var(--card-background-color, #fff);
         }
+        ha-card.has-bg {
+          background:
+            linear-gradient(rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.62)),
+            var(--room-bg) center / cover no-repeat,
+            var(--card-background-color, #fff);
+        }
         ha-card.lit {
           background:
             radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
             radial-gradient(70% 55% at 70% 18%, rgba(255, 196, 64, 0.18), transparent 60%),
+            var(--card-background-color, #fff);
+        }
+        ha-card.lit.has-bg {
+          background:
+            radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
+            radial-gradient(70% 55% at 70% 18%, rgba(255, 196, 64, 0.18), transparent 60%),
+            linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
+            var(--room-bg) center / cover no-repeat,
             var(--card-background-color, #fff);
         }
         ha-card.heating-glow {
@@ -177,10 +201,25 @@
             radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
             var(--card-background-color, #fff);
         }
+        ha-card.heating-glow.has-bg {
+          background:
+            radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
+            var(--room-bg) center / cover no-repeat,
+            var(--card-background-color, #fff);
+        }
         ha-card.lit.heating-glow {
           background:
             radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
             radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            var(--card-background-color, #fff);
+        }
+        ha-card.lit.heating-glow.has-bg {
+          background:
+            radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
+            radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45)),
+            var(--room-bg) center / cover no-repeat,
             var(--card-background-color, #fff);
         }
         .layout {
@@ -458,6 +497,56 @@
       };
     }
 
+    _applyBackground(url) {
+      const card = this._ui?.card;
+      if (!card) return;
+      card.classList.toggle("has-bg", !!url);
+      if (!card.style || typeof card.style.setProperty !== "function") return;
+      if (url) {
+        const safe = String(url).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        card.style.setProperty("--room-bg", `url("${safe}")`);
+      } else if (typeof card.style.removeProperty === "function") {
+        card.style.removeProperty("--room-bg");
+      } else {
+        card.style.setProperty("--room-bg", "none");
+      }
+    }
+
+    _syncBackground() {
+      const raw = this._config?.background || "";
+      if (!raw) {
+        this._backgroundKey = "";
+        this._backgroundUrl = "";
+        this._applyBackground("");
+        return;
+      }
+      if (!raw.startsWith("media-source://")) {
+        this._backgroundKey = raw;
+        this._backgroundUrl = raw;
+        this._applyBackground(raw);
+        return;
+      }
+      if (raw === this._backgroundKey && this._backgroundUrl) {
+        this._applyBackground(this._backgroundUrl);
+        return;
+      }
+      this._backgroundKey = raw;
+      this._backgroundUrl = "";
+      this._applyBackground("");
+      const hass = this._hass;
+      if (!hass || typeof hass.callWS !== "function") return;
+      const revision = this._revision;
+      hass.callWS({ type: "media_source/resolve_media", media_content_id: raw }).then(result => {
+        if (revision !== this._revision || this._backgroundKey !== raw) return;
+        this._backgroundUrl = result?.url || "";
+        this._applyBackground(this._backgroundUrl);
+      }).catch(() => {
+        if (revision !== this._revision || this._backgroundKey !== raw) return;
+        this._backgroundUrl = "";
+        this._applyBackground("");
+      });
+    }
+
     _update() {
       if (!this._ui || !this._config) return;
       const ui = this._ui;
@@ -480,6 +569,7 @@
       ui.layout.classList.toggle("no-side", !showSide);
       ui.layout.classList.toggle("no-climate", !showThermostat);
 
+      this._syncBackground();
       if (showThermometer) this._updateThermometer();
       if (showThermostat) this._updateThermostat();
       else ui.card.classList.toggle("heating-glow", false);

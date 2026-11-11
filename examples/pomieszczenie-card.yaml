@@ -1,5 +1,7 @@
 type: custom:ha-pomieszczenie-card
 name: Salon
+# Obraz z mediów HA albo plik z www, np. /local/obrazy/salon.jpg
+background: media-source://media_source/local/salon.jpg
 climate: climate.salon
 thermometer: sensor.salon_temperatura
 climate_temperature: sensor.0x983268fffe996937_local_temperature

@@ -101,6 +101,7 @@ zaznaczyć kilka głośników naraz. Gotowy komunikat odtwarza się od razu.
 W edytorze karty ustawiasz:
 
 - nazwę pomieszczenia,
+- tło karty — obraz z mediów HA albo ścieżka (`/local/...`, `media-source://...`),
 - pierwsze światło (`light` albo `switch`) — obok nazwy; kolejne w prawej kolumnie; zapalenie daje żółtą poświatę,
 - termostat (`climate`) — aktualna temperatura, zadana i −/+; pomarańczowa ikona gdy grzeje,
 - temperatura termostatu (`sensor`) — opcjonalny pomiar z urządzenia zamiast `current_temperature`,

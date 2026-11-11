@@ -115,6 +115,7 @@ const HaCardKit = Object.freeze({
     static getStubConfig() {
       return {
         name: "Pomieszczenie",
+        background: "",
         climate: "",
         climate_temperature: "",
         thermometer: "",
@@ -139,6 +140,8 @@ const HaCardKit = Object.freeze({
       this._lightFlight = new Set();
       this._timers = {};
       this._tokens = {};
+      this._backgroundKey = null;
+      this._backgroundUrl = "";
     }
 
     setConfig(config) {
@@ -153,6 +156,8 @@ const HaCardKit = Object.freeze({
       this._modeFlight = false;
       this._lightOverride = new Map();
       this._lightFlight = new Set();
+      this._backgroundKey = null;
+      this._backgroundUrl = "";
       for (const timer of Object.values(this._timers)) clearTimeout(timer);
       this._timers = {};
       this._tokens = {};
@@ -214,8 +219,13 @@ const HaCardKit = Object.freeze({
       });
       const chosen = lights.map(light => light.entity).filter(Boolean);
       if (new Set(chosen).size !== chosen.length) throw new Error("Każde światło musi być inną encją.");
+      const backgroundValue = config.background;
+      const background = typeof backgroundValue === "string"
+        ? backgroundValue.trim().slice(0, 500)
+        : String(backgroundValue?.media_content_id || "").trim().slice(0, 500);
       return {
         name: String(config.name ?? "").trim().slice(0, 80) || "Pomieszczenie",
+        background,
         climate: entity(config.climate, ID.climate, "Termostat musi być encją climate."),
         climate_temperature: entity(config.climate_temperature, ID.sensor, "Temperatura termostatu musi być encją sensor."),
         thermometer: entity(config.thermometer, ID.sensor, "Termometr musi być encją sensor."),
@@ -250,10 +260,24 @@ const HaCardKit = Object.freeze({
           overflow: hidden; position: relative;
           background: var(--card-background-color, #fff);
         }
+        ha-card.has-bg {
+          background:
+            linear-gradient(rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.62)),
+            var(--room-bg) center / cover no-repeat,
+            var(--card-background-color, #fff);
+        }
         ha-card.lit {
           background:
             radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
             radial-gradient(70% 55% at 70% 18%, rgba(255, 196, 64, 0.18), transparent 60%),
+            var(--card-background-color, #fff);
+        }
+        ha-card.lit.has-bg {
+          background:
+            radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
+            radial-gradient(70% 55% at 70% 18%, rgba(255, 196, 64, 0.18), transparent 60%),
+            linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
+            var(--room-bg) center / cover no-repeat,
             var(--card-background-color, #fff);
         }
         ha-card.heating-glow {
@@ -261,10 +285,25 @@ const HaCardKit = Object.freeze({
             radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
             var(--card-background-color, #fff);
         }
+        ha-card.heating-glow.has-bg {
+          background:
+            radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)),
+            var(--room-bg) center / cover no-repeat,
+            var(--card-background-color, #fff);
+        }
         ha-card.lit.heating-glow {
           background:
             radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
             radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            var(--card-background-color, #fff);
+        }
+        ha-card.lit.heating-glow.has-bg {
+          background:
+            radial-gradient(95% 80% at 92% 6%, rgba(255, 214, 90, 0.48), transparent 52%),
+            radial-gradient(85% 75% at 18% 78%, rgba(255, 148, 48, 0.28), transparent 55%),
+            linear-gradient(rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.45)),
+            var(--room-bg) center / cover no-repeat,
             var(--card-background-color, #fff);
         }
         .layout {
@@ -542,6 +581,56 @@ const HaCardKit = Object.freeze({
       };
     }
 
+    _applyBackground(url) {
+      const card = this._ui?.card;
+      if (!card) return;
+      card.classList.toggle("has-bg", !!url);
+      if (!card.style || typeof card.style.setProperty !== "function") return;
+      if (url) {
+        const safe = String(url).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        card.style.setProperty("--room-bg", `url("${safe}")`);
+      } else if (typeof card.style.removeProperty === "function") {
+        card.style.removeProperty("--room-bg");
+      } else {
+        card.style.setProperty("--room-bg", "none");
+      }
+    }
+
+    _syncBackground() {
+      const raw = this._config?.background || "";
+      if (!raw) {
+        this._backgroundKey = "";
+        this._backgroundUrl = "";
+        this._applyBackground("");
+        return;
+      }
+      if (!raw.startsWith("media-source://")) {
+        this._backgroundKey = raw;
+        this._backgroundUrl = raw;
+        this._applyBackground(raw);
+        return;
+      }
+      if (raw === this._backgroundKey && this._backgroundUrl) {
+        this._applyBackground(this._backgroundUrl);
+        return;
+      }
+      this._backgroundKey = raw;
+      this._backgroundUrl = "";
+      this._applyBackground("");
+      const hass = this._hass;
+      if (!hass || typeof hass.callWS !== "function") return;
+      const revision = this._revision;
+      hass.callWS({ type: "media_source/resolve_media", media_content_id: raw }).then(result => {
+        if (revision !== this._revision || this._backgroundKey !== raw) return;
+        this._backgroundUrl = result?.url || "";
+        this._applyBackground(this._backgroundUrl);
+      }).catch(() => {
+        if (revision !== this._revision || this._backgroundKey !== raw) return;
+        this._backgroundUrl = "";
+        this._applyBackground("");
+      });
+    }
+
     _update() {
       if (!this._ui || !this._config) return;
       const ui = this._ui;
@@ -564,6 +653,7 @@ const HaCardKit = Object.freeze({
       ui.layout.classList.toggle("no-side", !showSide);
       ui.layout.classList.toggle("no-climate", !showThermostat);
 
+      this._syncBackground();
       if (showThermometer) this._updateThermometer();
       if (showThermostat) this._updateThermostat();
       else ui.card.classList.toggle("heating-glow", false);
@@ -961,6 +1051,7 @@ const HaCardKit = Object.freeze({
       this.attachShadow({ mode: "open" });
       this._selects = [];
       this._signature = "";
+      this._mediaSelector = null;
     }
 
     setConfig(config) {
@@ -970,6 +1061,7 @@ const HaCardKit = Object.freeze({
       const incoming = HaCardKit.clone(config || {});
       const sourceLights = Array.isArray(incoming.lights) ? incoming.lights : [];
       this._config = { ...defaults, ...incoming };
+      this._config.background = this._mediaValue(incoming.background ?? defaults.background);
       this._config.lights = Array.from({ length: 3 }, (_, index) => ({
         entity: sourceLights[index]?.entity || "",
         name: sourceLights[index]?.name || "",
@@ -979,8 +1071,18 @@ const HaCardKit = Object.freeze({
       this._render();
     }
 
-    set hass(value) { this._hass = value; this._updateOptions(); }
+    set hass(value) {
+      this._hass = value;
+      this._updateOptions();
+      if (this._mediaSelector) this._mediaSelector.hass = value;
+    }
     get hass() { return this._hass; }
+
+    _mediaValue(value) {
+      if (!value) return "";
+      if (typeof value === "string") return value.trim().slice(0, 500);
+      return String(value.media_content_id || "").trim().slice(0, 500);
+    }
 
     _commit(mutator) {
       const next = HaCardKit.clone(this._config);
@@ -1006,6 +1108,47 @@ const HaCardKit = Object.freeze({
       label.append(caption, input);
       parent.append(label);
       return input;
+    }
+
+    _backgroundField(parent, value, onChange) {
+      const label = document.createElement("label");
+      label.className = "field";
+      const caption = document.createElement("span");
+      caption.textContent = "Tło karty";
+      label.append(caption);
+      const current = this._mediaValue(value);
+      if (customElements.get("ha-selector")) {
+        const selector = document.createElement("ha-selector");
+        selector.hass = this._hass;
+        selector.label = "Tło karty";
+        selector.selector = {
+          media: {
+            accept: ["image/*"],
+            image_upload: true,
+            hide_content_type: true,
+          },
+        };
+        selector.value = current
+          ? (current.startsWith("media-source://") || current.startsWith("/api/image/")
+            ? { media_content_id: current }
+            : current)
+          : "";
+        selector.addEventListener("value-changed", event => {
+          onChange(this._mediaValue(event.detail?.value));
+        });
+        this._mediaSelector = selector;
+        label.append(selector);
+      } else {
+        this._mediaSelector = null;
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = current;
+        input.maxLength = 500;
+        input.placeholder = "/local/obrazy/salon.jpg";
+        input.addEventListener("input", () => onChange(input.value));
+        label.append(input);
+      }
+      parent.append(label);
     }
 
     _accepts(state, filter) {
@@ -1060,6 +1203,7 @@ const HaCardKit = Object.freeze({
 
     _render() {
       this._selects = [];
+      this._mediaSelector = null;
       this.shadowRoot.innerHTML = `
         <style>
           :host { display: block; color: var(--primary-text-color); font-family: inherit; }
@@ -1069,6 +1213,7 @@ const HaCardKit = Object.freeze({
           .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
           input, select { font: inherit; color: var(--primary-text-color); }
           input, select { width: 100%; min-width: 0; min-height: 42px; padding: 9px; border: 1px solid var(--divider-color); border-radius: 8px; background: var(--card-background-color); font-size: 16px; }
+          ha-selector { display: block; }
           fieldset { margin: 0; border: 1px solid var(--divider-color); border-radius: 10px; padding: 14px; min-width: 0; display: grid; gap: 12px; }
           legend { font-size: 14px; font-weight: 500; padding: 0 6px; }
           .help { color: var(--secondary-text-color); font-size: 12px; line-height: 1.6; margin: 0; }
@@ -1088,6 +1233,11 @@ const HaCardKit = Object.freeze({
       this._textField(general, "Nazwa pomieszczenia", this._config.name, value => this._commit(config => { config.name = value; }), {
         limit: 80, placeholder: "Pomieszczenie",
       });
+      this._backgroundField(general, this._config.background, value => this._commit(config => { config.background = value; }));
+      const backgroundHelp = document.createElement("p");
+      backgroundHelp.className = "help";
+      backgroundHelp.textContent = "Wybierz obraz z mediów Home Assistant albo podaj ścieżkę, np. /local/obrazy/salon.jpg. Puste pole zostawia zwykłe tło karty.";
+      general.append(backgroundHelp);
       this._entityField(general, "Termostat", "climate", this._config.climate, value => this._commit(config => { config.climate = value; }));
       this._entityField(general, "Temperatura termostatu", "sensor", this._config.climate_temperature, value => this._commit(config => { config.climate_temperature = value; }), "temperature");
       this._entityField(general, "Termometr w pokoju", "sensor", this._config.thermometer, value => this._commit(config => { config.thermometer = value; }), "temperature");

@@ -14,6 +14,12 @@ class HTMLElement {
     this.textContent = '';
     this.className = '';
     this._listeners = {};
+    const props = {};
+    this.style = {
+      setProperty(name, value) { props[name] = String(value); },
+      removeProperty(name) { delete props[name]; },
+      getPropertyValue(name) { return Object.prototype.hasOwnProperty.call(props, name) ? props[name] : ''; },
+    };
     const el = this;
     this.classList = {
       toggle(name, force) {
@@ -267,6 +273,31 @@ test('switch used as a light is shown and toggled in the switch domain', async (
   assert.equal(card._ui.lightButtons[0].button.getAttribute('aria-pressed'), 'false');
   await card._toggleLight('switch.lampa_salon');
   assert.equal(JSON.stringify(hass.calls[0]), JSON.stringify(['switch', 'toggle', { entity_id: 'switch.lampa_salon' }]));
+});
+
+test('applies local background and resolves media-source urls', async () => {
+  const { card, hass } = setup({ name: 'Salon', background: '/local/obrazy/salon.jpg' });
+  assert.equal(card._config.background, '/local/obrazy/salon.jpg');
+  assert.equal(card._ui.card.classList.contains('has-bg'), true);
+  assert.match(card._ui.card.style.getPropertyValue('--room-bg'), /salon\.jpg/);
+
+  let resolved = null;
+  hass.callWS = async (message) => {
+    resolved = message;
+    return { url: '/media/local/salon.jpg?authSig=test' };
+  };
+  card.setConfig({
+    name: 'Salon',
+    background: { media_content_id: 'media-source://media_source/local/salon.jpg' },
+  });
+  card.hass = hass;
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(card._config.background, 'media-source://media_source/local/salon.jpg');
+  assert.equal(resolved.type, 'media_source/resolve_media');
+  assert.equal(resolved.media_content_id, 'media-source://media_source/local/salon.jpg');
+  assert.equal(card._ui.card.classList.contains('has-bg'), true);
+  assert.match(card._ui.card.style.getPropertyValue('--room-bg'), /authSig=test/);
 });
 
 test('editor keeps unrelated HA fields and ignores an echoed config', () => {
